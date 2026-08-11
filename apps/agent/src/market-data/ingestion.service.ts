@@ -22,7 +22,8 @@ export class IngestionService {
     private readonly repo: CandleRepository,
   ) {}
 
-  private createExchange(): Exchange {
+  /** Public so the §6.3 spread sampler can quote the SAME venue we model costs for. */
+  createExchange(): Exchange {
     const id = this.config.get<string>('DATA_EXCHANGE', 'kraken');
     const ctor = (ccxt as unknown as Record<string, new (cfg: object) => Exchange>)[id];
     if (!ctor) throw new Error(`Unknown ccxt exchange id: ${id}`);

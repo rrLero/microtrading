@@ -15,7 +15,9 @@ import { CalibrationProbeService } from '../trading/calibration-probe.service.js
 async function main(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['log', 'warn', 'error'] });
   try {
-    await app.get(CalibrationProbeService).runOnce('manual');
+    const probe = app.get(CalibrationProbeService);
+    await probe.sampleSpread(); // read-only, no orders — the slippage half of §6.3
+    await probe.runOnce('manual');
     console.log('\nProbe finished. Inspect the pair with:  pnpm calibrate-report');
   } finally {
     await app.close();

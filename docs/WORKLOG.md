@@ -39,7 +39,38 @@ probe work uncovered a silent mirror bug.
   measured 0.0000 on every leg — the demo fill price equalled the pre-order
   ticker last exactly, 3/3 probes. And modeled fee (Kraken 0.26%) vs demo fee
   (Bybit 0.05%) is a venue-tier difference, not a model error. So as built, the
-  §6.3 comparison may be unable to validate slippage at all. See status snapshot.
+  §6.3 comparison may be unable to validate slippage at all. → ANSWERED below.
+
+## 2026-08-11 (later) — Version control, and where slippage is actually measurable
+
+- **`git init`** — the project had NO version control through all of Phases 0-3
+  and 4 days of soak. Baseline commit made; `.gitignore` hardened (`.env.*`,
+  `!.env.example`, `.next/`, `.DS_Store`) and verified that only `.env.example`
+  is tracked. Revertability starts at commit 262eb78.
+  (Unverified: whether `.env.example` itself is a clean template — inspecting it
+  was declined, so treat it as unaudited until a human eyeballs it.)
+- **Bybit demo cannot calibrate slippage — settled.** Probe #222 repeated the
+  round trip at 10× size (10,000 USDC / 0.155 BTC): fill price was again EXACTLY
+  the pre-order ticker last, and the buy and sell both filled at the identical
+  64409.5 — a round trip crossing zero spread, impossible on a real book. So the
+  demo engine simulates neither spread nor book impact at any size we trade, at
+  1k or 10k. The demo remains useful for fees, order mechanics, and rejects; it
+  is worthless for the slippage arm of §6.3. No more effort should go into
+  making demo slippage meaningful.
+- **Slippage now measured where it exists** (`sampleSpread()`, hourly at :07):
+  §6.2 defines slippage = max(half-spread, 0.03%), and half-spread is directly
+  observable on Kraken — the venue we actually model costs for — with a public
+  read-only quote and no orders. Reuses `IngestionService.createExchange()`
+  (now public) so it quotes the same venue as ingestion. Journaled as
+  ops/spread-sample; calibrate-report prints median/p90/max and counts how often
+  reality exceeds the model. Records evidence only; changes no gate.
+- **First reading: the model is PESSIMISTIC, which is the safe direction.**
+  Kraken BTC/USDC half-spread 0.0025% vs the flat 0.0300% the model charges —
+  the model over-charges slippage by ~12×. Per §6.2 ("all go/no-go decisions are
+  made on pessimistic-mode numbers") that is correct behaviour, not a bug. One
+  sample is not a distribution; the hourly cron builds one. Watch for the
+  opposite sign — if median half-spread ever exceeds 0.03%, the model is
+  under-charging and paper results turn optimistic.
 
 ## 2026-08-10 — Mirror coverage is now auditable (soak-check finding)
 
@@ -134,11 +165,12 @@ probe work uncovered a silent mirror bug.
   §6.3 mirror armed ✓ *and now actually capturing prices* ✓ daily probe ✓ —
   remaining: ≥2 weeks of pairs, then calibrate-report verdict; 4-week soak clock
   runs to ~2026-09-06.
-- **Decision needed before the gate can mean anything**: the first real pairs
-  suggest Bybit demo fills at last price (zero slippage) and on its own fee
-  tier, so §6.3 as written may measure venue difference rather than fill-model
-  error. Options: (a) calibrate slippage against Kraken's live order book
-  half-spread instead (read-only, no orders, matches §6.2's actual formula),
-  (b) compare fee-adjusted slippage only, (c) amend §6.3. Not actioned —
-  human's call; §6.3 is unamended so far.
+- **§6.3 splits into two arms, and only one of them lives on Bybit demo**:
+  slippage is measured from Kraken half-spread samples (hourly, read-only);
+  fees/mechanics from demo fills. Demo slippage is structurally 0 and should be
+  ignored. §6.3 text remains UNAMENDED — the gate still reads on strategy fills;
+  if the human wants the gate itself to reflect this split, that is a spec
+  decision, not a code one.
+- Version control exists as of 2026-08-11 (`git init`). Commit before soak-
+  affecting changes; the mirror bug above went 1 day undetected with no history.
 - Next phase gate: Phase 4 (LLM analyst) only after §6.3 calibration passes.

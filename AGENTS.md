@@ -77,9 +77,11 @@ Update it after every significant operational or engineering change.
   demo buy→sell round trip/day → 2 §6.3 pairs/day. Isolated from
   paper_account, skips when the kill switch is on. Run one now with
   `pnpm --filter @microtrading/agent calibration-probe`.
-- OPEN: probe pairs show zero demo slippage and a Bybit-vs-Kraken fee-tier gap,
-  so §6.3 may currently measure venue difference, not fill-model error.
-  Decision pending — see the WORKLOG status snapshot before touching the gate.
+- Bybit demo fills at last price with ZERO spread at 1k and 10k USDC (verified
+  2026-08-11) — it cannot calibrate slippage. Don't try again. Slippage is
+  sampled from Kraken's half-spread instead (hourly :07, read-only, journaled as
+  ops/spread-sample); demo fills still calibrate fees and order mechanics.
+- Repo is under git as of 2026-08-11. Commit before soak-affecting changes.
 
 ## Safety rules for agents
 

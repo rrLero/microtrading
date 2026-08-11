@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { DbService } from '../db/db.service.js';
 import { journal, paperAccount } from '../db/schema.js';
 import { btFor, type StrategyFamily } from '../experiments/experiment.service.js';
+import { IngestionService } from '../market-data/ingestion.service.js';
 import { BybitDemoMirrorService } from './bybit-demo-mirror.service.js';
 
 /**
@@ -30,6 +31,7 @@ export class CalibrationProbeService {
   constructor(
     private readonly config: ConfigService,
     private readonly dbs: DbService,
+    private readonly ingestion: IngestionService,
     private readonly mirror: BybitDemoMirrorService,
   ) {}
 
@@ -38,6 +40,66 @@ export class CalibrationProbeService {
   async scheduled(): Promise<void> {
     if (this.config.get('ENABLE_CALIBRATION_PROBE') !== 'true') return;
     await this.runOnce('scheduled');
+  }
+
+  // Hourly at :07 — off the :02 trading tick. Spread is a distribution that moves
+  // intraday, so a daily reading would characterise nothing.
+  @Cron('7 * * * *')
+  async scheduledSpread(): Promise<void> {
+    if (this.config.get('ENABLE_CALIBRATION_PROBE') !== 'true') return;
+    await this.sampleSpread();
+  }
+
+  /**
+   * The slippage half of §6.3, measured where it is actually measurable.
+   *
+   * Bybit demo fills market orders at last price with zero spread at any size
+   * we trade (verified 2026-08-11 at 1k and 10k USDC), so it cannot validate
+   * slippage at all. But §6.2 defines slippage as max(half-spread, 0.03%) — and
+   * half-spread is directly observable on the venue we actually model costs for,
+   * with a public read-only quote and no orders whatsoever.
+   *
+   * This only RECORDS evidence; it changes no gate and places nothing.
+   * Never throws — it is a cron, and a missing sample is not an incident.
+   */
+  async sampleSpread(): Promise<void> {
+    try {
+      const symbol = this.config.get<string>('SYMBOL', 'BTC/USDC');
+      const family = this.config.get<StrategyFamily>('STRATEGY_FAMILY', 'donchian-breakout');
+      const modeledSlippageRate = btFor(family).costs.slippageRate;
+
+      const ex = this.ingestion.createExchange();
+      const t = await ex.fetchTicker(symbol);
+      const bid = t.bid ?? null;
+      const ask = t.ask ?? null;
+      if (!bid || !ask || !(ask > bid)) {
+        this.log.warn(`No usable bid/ask for ${symbol} on ${ex.id} — spread sample skipped.`);
+        return;
+      }
+      const mid = (bid + ask) / 2;
+      const halfSpreadRate = (ask - bid) / 2 / mid;
+
+      await this.dbs.db.insert(journal).values({
+        kind: 'ops',
+        payload: {
+          event: 'spread-sample',
+          venue: ex.id,
+          symbol,
+          bid,
+          ask,
+          mid,
+          halfSpreadRate,
+          modeledSlippageRate,
+          // §6.2's rule: the model should charge whichever is worse.
+          specSlippageRate: Math.max(halfSpreadRate, modeledSlippageRate),
+        },
+      });
+      this.log.log(
+        `Spread sample ${ex.id} ${symbol}: half-spread ${(halfSpreadRate * 100).toFixed(4)}% vs modeled ${(modeledSlippageRate * 100).toFixed(4)}%`,
+      );
+    } catch (err) {
+      this.log.warn(`Spread sample failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   /** Also callable from the CLI for an on-demand probe / drill. Never throws. */

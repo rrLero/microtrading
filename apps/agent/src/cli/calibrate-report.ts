@@ -44,6 +44,12 @@ interface DemoFillPayload {
   side: 'buy' | 'sell';
 }
 
+interface SpreadSample {
+  venue: string;
+  halfSpreadRate: number;
+  modeledSlippageRate: number;
+}
+
 interface Pair {
   at: Date;
   side: 'buy' | 'sell';
@@ -108,6 +114,7 @@ async function main(): Promise<void> {
     let mirrorErrors = 0;
     let probesRun = 0;
     let probesSkipped = 0;
+    const spreadSamples: SpreadSample[] = [];
 
     for (const r of rows) {
       const p = r.payload as Record<string, unknown>;
@@ -118,6 +125,7 @@ async function main(): Promise<void> {
       if (r.kind === 'ops' && p['event'] === 'mirror-error') mirrorErrors += 1;
       if (r.kind === 'ops' && p['event'] === 'calibration-probe') probesRun += 1;
       if (r.kind === 'ops' && (p['event'] === 'probe-skip-disabled' || p['event'] === 'probe-skip-kill-switch')) probesSkipped += 1;
+      if (r.kind === 'ops' && p['event'] === 'spread-sample') spreadSamples.push(p as unknown as SpreadSample);
     }
 
     const strategyPairs: Pair[] = [];
@@ -160,6 +168,22 @@ async function main(): Promise<void> {
 
     const gateDev = report('STRATEGY FILLS (the §6.3 gate population)', strategyPairs, incompleteStrategy);
     report('CALIBRATION PROBES (supporting evidence, not signals)', probePairs, incompleteProbe);
+
+    if (spreadSamples.length > 0) {
+      const rates = spreadSamples.map((s) => s.halfSpreadRate).sort((a, b) => a - b);
+      const pct = (q: number): number => rates[Math.min(rates.length - 1, Math.floor(q * rates.length))]!;
+      const modeled = spreadSamples[spreadSamples.length - 1]!.modeledSlippageRate;
+      const venue = spreadSamples[spreadSamples.length - 1]!.venue;
+      const worseThanModel = rates.filter((r) => r > modeled).length;
+      console.log(`\n--- SLIPPAGE EVIDENCE — ${venue} half-spread, ${rates.length} sample(s) ---`);
+      console.log(`  modeled slippage rate: ${(modeled * 100).toFixed(4)}%  (flat, as implemented)`);
+      console.log(`  observed half-spread:  median ${(pct(0.5) * 100).toFixed(4)}%   p90 ${(pct(0.9) * 100).toFixed(4)}%   max ${(rates[rates.length - 1]! * 100).toFixed(4)}%`);
+      console.log(`  samples where the real half-spread EXCEEDS the model: ${worseThanModel}/${rates.length}`);
+      if (pct(0.5) > modeled) {
+        console.log('  ⚠ §6.2 says slippage = max(half-spread, 0.03%); the flat rate is UNDER-charging.');
+        console.log('    Under-charging costs makes paper results optimistic — the dangerous direction.');
+      }
+    }
 
     console.log('\n=== verdict ===');
     if (gateDev === null) {
