@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./apps/agent/.env)",
+      "Read(./apps/agent/.env.prod)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)"
+    ]
+  }
+}

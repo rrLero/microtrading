@@ -1,0 +1,12 @@
+{
+  "family": "donchian-breakout",
+  "_note": "PRE-REGISTERED GRID (SPEC §7.1). 6 of 20 budget — third and FINAL family of V1; per §7.4 the project stopping rule already triggered once, so this is the low-frequency hypothesis, not a fishing expedition. Wider stops via btFor(). Commit before preregister.",
+  "grid": [
+    { "entryLookback": 20, "exitLookback": 10 },
+    { "entryLookback": 20, "exitLookback": 20 },
+    { "entryLookback": 40, "exitLookback": 10 },
+    { "entryLookback": 40, "exitLookback": 20 },
+    { "entryLookback": 55, "exitLookback": 10 },
+    { "entryLookback": 55, "exitLookback": 20 }
+  ]
+}

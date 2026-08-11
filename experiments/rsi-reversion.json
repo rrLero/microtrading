@@ -1,0 +1,22 @@
+{
+  "family": "rsi-reversion",
+  "_note": "PRE-REGISTERED GRID (SPEC §7.1). 16 of 20 budget. Commit before running preregister. Immutable after registration — a new idea is a new family.",
+  "grid": [
+    { "rsiPeriod": 7, "oversold": 25, "exitLevel": 50, "trendSma4h": 50 },
+    { "rsiPeriod": 7, "oversold": 25, "exitLevel": 55, "trendSma4h": 50 },
+    { "rsiPeriod": 7, "oversold": 30, "exitLevel": 50, "trendSma4h": 50 },
+    { "rsiPeriod": 7, "oversold": 30, "exitLevel": 55, "trendSma4h": 50 },
+    { "rsiPeriod": 14, "oversold": 25, "exitLevel": 50, "trendSma4h": 50 },
+    { "rsiPeriod": 14, "oversold": 25, "exitLevel": 55, "trendSma4h": 50 },
+    { "rsiPeriod": 14, "oversold": 30, "exitLevel": 50, "trendSma4h": 50 },
+    { "rsiPeriod": 14, "oversold": 30, "exitLevel": 55, "trendSma4h": 50 },
+    { "rsiPeriod": 7, "oversold": 25, "exitLevel": 50, "trendSma4h": 30 },
+    { "rsiPeriod": 7, "oversold": 25, "exitLevel": 55, "trendSma4h": 30 },
+    { "rsiPeriod": 7, "oversold": 30, "exitLevel": 50, "trendSma4h": 30 },
+    { "rsiPeriod": 7, "oversold": 30, "exitLevel": 55, "trendSma4h": 30 },
+    { "rsiPeriod": 14, "oversold": 25, "exitLevel": 50, "trendSma4h": 30 },
+    { "rsiPeriod": 14, "oversold": 25, "exitLevel": 55, "trendSma4h": 30 },
+    { "rsiPeriod": 14, "oversold": 30, "exitLevel": 50, "trendSma4h": 30 },
+    { "rsiPeriod": 14, "oversold": 30, "exitLevel": 55, "trendSma4h": 30 }
+  ]
+}

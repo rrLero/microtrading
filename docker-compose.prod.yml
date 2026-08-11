@@ -1,0 +1,35 @@
+# Production deployment (VPS): docker compose -f docker-compose.prod.yml up -d
+# Put runtime config in apps/agent/.env.prod (NOT committed). Postgres is only
+# reachable inside the compose network; the API is bound to localhost only —
+# access the dashboard via SSH tunnel or add a reverse proxy with auth later.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: micro
+      POSTGRES_PASSWORD: micro
+      POSTGRES_DB: microtrading
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U micro -d microtrading"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  agent:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - apps/agent/.env.prod
+    environment:
+      DATABASE_URL: postgres://micro:micro@db:5432/microtrading
+    ports:
+      - "127.0.0.1:3001:3001"
+
+volumes:
+  pgdata:

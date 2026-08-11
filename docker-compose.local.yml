@@ -1,0 +1,45 @@
+# Local "prod-like" run: agent in Docker on this Mac, SAME project & volume as
+# docker-compose.yml, so all existing journal/equity/position data is kept.
+#   docker compose -f docker-compose.local.yml up -d --build
+# Stop the terminal (pnpm dev) agent BEFORE starting this — one loop only.
+# Dashboard keeps running locally on :3002 and reads 127.0.0.1:3001 as before.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: microtrading-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: micro
+      POSTGRES_PASSWORD: micro
+      POSTGRES_DB: microtrading
+    ports:
+      # Host port 55432: 5432 has a local Postgres, 5433 has an SSH tunnel on this machine
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U micro -d microtrading"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  agent:
+    build: .
+    container_name: microtrading-agent
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - apps/agent/.env
+    environment:
+      # Overrides the .env value — inside the compose network Postgres is "db:5432"
+      DATABASE_URL: postgres://micro:micro@db:5432/microtrading
+      # §6.3 daily calibration probe (13:37 UTC). Paper-account-isolated and
+      # kill-switch aware; set to "false" to stop probing without a rebuild.
+      ENABLE_CALIBRATION_PROBE: "true"
+    ports:
+      - "127.0.0.1:3001:3001"
+
+volumes:
+  pgdata:

@@ -1,0 +1,25 @@
+{
+  "name": "microtrading",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "dev": "turbo run dev",
+    "backfill": "pnpm --filter @microtrading/agent backfill",
+    "import-csv": "pnpm --filter @microtrading/agent import-csv",
+    "heal-gaps": "pnpm --filter @microtrading/agent heal-gaps",
+    "backfill-trades": "pnpm --filter @microtrading/agent backfill-trades",
+    "preregister": "pnpm --filter @microtrading/agent preregister",
+    "run-trials": "pnpm --filter @microtrading/agent run-trials",
+    "run-holdout": "pnpm --filter @microtrading/agent run-holdout",
+    "status": "pnpm --filter @microtrading/agent status",
+    "kill-switch": "pnpm --filter @microtrading/agent kill-switch"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.turbo/
+.next/
+*.log
+coverage/
+data/*.csv
+.DS_Store
+.fuse_hidden*
+
+# Secrets — exchange keys live here (AGENTS.md: never commit).
+# Bare `.env` already matches at any depth; `.env.*` covers .env.prod/.local too.
+.env
+.env.*
+!.env.example

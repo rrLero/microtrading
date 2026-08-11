@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens: shadcn-style variables, values from the validated dataviz
+ * reference palette (light/dark selected per mode, not auto-flipped).
+ */
+:root {
+  color-scheme: light;
+  --background: #f9f9f7; /* page plane */
+  --card: #fcfcfb; /* chart surface */
+  --foreground: #0b0b0b; /* primary ink */
+  --secondary-foreground: #52514e;
+  --muted-foreground: #898781; /* axis/labels */
+  --border: rgba(11, 11, 11, 0.1);
+  --gridline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --series-1: #2a78d6; /* categorical slot 1 (blue) */
+  --status-good: #0ca30c;
+  --status-critical: #d03b3b;
+  --delta-up: #006300; /* success text, light */
+  --delta-down: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #0d0d0d;
+    --card: #1a1a19;
+    --foreground: #ffffff;
+    --secondary-foreground: #c3c2b7;
+    --muted-foreground: #898781;
+    --border: rgba(255, 255, 255, 0.1);
+    --gridline: #2c2c2a;
+    --baseline: #383835;
+    --series-1: #3987e5;
+    --status-good: #0ca30c;
+    --status-critical: #d03b3b;
+    --delta-up: #0ca30c;
+    --delta-down: #e66767;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-gridline: var(--gridline);
+  --color-baseline: var(--baseline);
+  --color-series-1: var(--series-1);
+  --color-status-good: var(--status-good);
+  --color-status-critical: var(--status-critical);
+  --color-delta-up: var(--delta-up);
+  --color-delta-down: var(--delta-down);
+  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}

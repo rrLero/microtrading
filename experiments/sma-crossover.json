@@ -1,0 +1,18 @@
+{
+  "family": "sma-crossover",
+  "_note": "PRE-REGISTERED GRID (SPEC §7.1). 12 of 20 budget. Commit before running preregister. Immutable after registration — a new idea is a new family.",
+  "grid": [
+    { "fast": 10, "slow": 50, "trendSma4h": 50 },
+    { "fast": 10, "slow": 100, "trendSma4h": 50 },
+    { "fast": 10, "slow": 200, "trendSma4h": 50 },
+    { "fast": 20, "slow": 50, "trendSma4h": 50 },
+    { "fast": 20, "slow": 100, "trendSma4h": 50 },
+    { "fast": 20, "slow": 200, "trendSma4h": 50 },
+    { "fast": 10, "slow": 50, "trendSma4h": 30 },
+    { "fast": 10, "slow": 100, "trendSma4h": 30 },
+    { "fast": 10, "slow": 200, "trendSma4h": 30 },
+    { "fast": 20, "slow": 50, "trendSma4h": 30 },
+    { "fast": 20, "slow": 100, "trendSma4h": 30 },
+    { "fast": 20, "slow": 200, "trendSma4h": 30 }
+  ]
+}

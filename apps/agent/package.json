@@ -1,0 +1,46 @@
+{
+  "name": "@microtrading/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "node --watch --env-file=.env dist/main.js",
+    "start": "node --env-file=.env dist/main.js",
+    "backfill": "node --env-file=.env dist/cli/backfill.js",
+    "import-csv": "node --env-file=.env dist/cli/import-csv.js",
+    "heal-gaps": "node --env-file=.env dist/cli/heal-gaps.js",
+    "backfill-trades": "node --env-file=.env dist/cli/backfill-trades.js",
+    "preregister": "node --env-file=.env dist/cli/preregister.js",
+    "run-trials": "node --env-file=.env dist/cli/run-trials.js",
+    "run-holdout": "node --env-file=.env dist/cli/run-holdout.js",
+    "status": "node --env-file=.env dist/cli/status.js",
+    "calibrate-report": "node --env-file=.env dist/cli/calibrate-report.js",
+    "calibration-probe": "node --env-file=.env dist/cli/calibration-probe.js",
+    "demo-ping": "node --env-file=.env dist/cli/demo-ping.js",
+    "kill-switch": "node --env-file=.env dist/cli/kill-switch.js",
+    "db:push": "drizzle-kit push",
+    "db:ping": "node --env-file=.env scripts/db-ping.mjs",
+    "test": "echo \"agent tests come with Phase 2 (risk engine)\" && exit 0"
+  },
+  "dependencies": {
+    "@microtrading/core": "workspace:*",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/schedule": "^6.0.0",
+    "ccxt": "^4.5.0",
+    "drizzle-orm": "^0.44.0",
+    "pg": "^8.13.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "dotenv": "^16.4.0",
+    "drizzle-kit": "^0.31.0",
+    "typescript": "^5.6.0"
+  }
+}
