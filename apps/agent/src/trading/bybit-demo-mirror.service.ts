@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import ccxt, { type Exchange, type Trade } from 'ccxt';
+import { modelFill, type CostParams } from '@microtrading/core';
 import { DbService } from '../db/db.service.js';
 import { journal } from '../db/schema.js';
 
@@ -198,7 +199,7 @@ export class BybitDemoMirrorService {
   async probeRoundTrip(p: {
     symbol: string;
     notionalUsdc: number;
-    costs: { takerFeeRate: number; slippageRate: number };
+    costs: CostParams;
     probeId: number;
   }): Promise<void> {
     if (!this.enabled) {
@@ -210,15 +211,17 @@ export class BybitDemoMirrorService {
       const refBuy = await this.lastPrice(ex, p.symbol);
       const qty = p.notionalUsdc / refBuy;
 
-      const buyFill = p.costs.slippageRate;
+      // §6.3 compares the paper model against the venue, so the paper side must
+      // come from the model itself — not a lookalike formula written here.
+      const buy = modelFill('buy', refBuy, qty, p.costs);
       const bought = await this.mirrorFill({
         paperFillId: p.probeId,
         side: 'buy',
         symbol: p.symbol,
         quantity: qty,
         refPrice: refBuy,
-        paperFillPrice: refBuy * (1 + buyFill),
-        paperFee: qty * refBuy * (1 + buyFill) * p.costs.takerFeeRate,
+        paperFillPrice: buy.fillPrice,
+        paperFee: buy.fee,
         reason: 'calibration probe',
         candleTs: null,
         probe: true,
@@ -231,14 +234,15 @@ export class BybitDemoMirrorService {
       // actual base balance instead if that dust ever becomes worth reclaiming.
       const sellQty = bought.filledQty * 0.998;
       const refSell = await this.lastPrice(ex, p.symbol);
+      const sell = modelFill('sell', refSell, sellQty, p.costs);
       await this.mirrorFill({
         paperFillId: p.probeId,
         side: 'sell',
         symbol: p.symbol,
         quantity: sellQty,
         refPrice: refSell,
-        paperFillPrice: refSell * (1 - p.costs.slippageRate),
-        paperFee: sellQty * refSell * (1 - p.costs.slippageRate) * p.costs.takerFeeRate,
+        paperFillPrice: sell.fillPrice,
+        paperFee: sell.fee,
         reason: 'calibration probe',
         candleTs: null,
         probe: true,

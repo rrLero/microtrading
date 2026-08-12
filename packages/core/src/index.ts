@@ -3,6 +3,7 @@ export * from './candles.js';
 export * from './indicators/indicators.js';
 export * from './interfaces/exchange-adapter.js';
 export * from './risk.js';
+export * from './fill-model.js';
 export * from './backtest/engine.js';
 export * from './backtest/metrics.js';
 export * from './backtest/walk-forward.js';

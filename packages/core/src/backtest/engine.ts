@@ -2,6 +2,9 @@ import { TIMEFRAME_MS, type Candle, type Strategy } from '../types.js';
 import { aggregate1hTo4h } from '../candles.js';
 import { atr } from '../indicators/indicators.js';
 import { computeEntryPlan, volCircuitBreakerActive, type RiskParams } from '../risk.js';
+import { modelFill, type CostParams } from '../fill-model.js';
+
+export type { CostParams };
 
 /**
  * Candle-replay backtest engine (SPEC §6, §7).
@@ -13,13 +16,6 @@ import { computeEntryPlan, volCircuitBreakerActive, type RiskParams } from '../r
  * Pessimistic mode (taker-only) is the ONLY mode this engine implements —
  * go/no-go decisions must never rest on optimistic fills (SPEC §6.2).
  */
-
-export interface CostParams {
-  /** Taker fee per side, e.g. 0.0026 for Kraken entry tier 0.26%. */
-  readonly takerFeeRate: number;
-  /** Slippage per fill as a rate, e.g. 0.0003. */
-  readonly slippageRate: number;
-}
 
 export interface BacktestConfig {
   readonly initialEquity: number;
@@ -81,9 +77,7 @@ export function runBacktest(candles1h: readonly Candle[], strategy: Strategy, cf
   const markEquity = (price: number): number => cash + (position ? position.quantity * price : 0);
 
   const closePosition = (pos: OpenPosition, ts: number, rawPrice: number, reason: Trade['exitReason']): void => {
-    const fillPrice = rawPrice * (1 - cfg.costs.slippageRate);
-    const proceeds = pos.quantity * fillPrice;
-    const exitFee = proceeds * cfg.costs.takerFeeRate;
+    const { fillPrice, notional: proceeds, fee: exitFee } = modelFill('sell', rawPrice, pos.quantity, cfg.costs);
     cash += proceeds - exitFee;
     const fees = pos.entryFee + exitFee;
     trades.push({
@@ -122,9 +116,7 @@ export function runBacktest(candles1h: readonly Candle[], strategy: Strategy, cf
         const atrVal = atrSeries[i - 1]; // ATR as of the decision candle — no look-ahead
         const plan = atrVal !== undefined ? computeEntryPlan(equity, candle.open, atrVal, cfg.risk) : null;
         if (plan) {
-          const fillPrice = candle.open * (1 + cfg.costs.slippageRate);
-          const cost = plan.quantity * fillPrice;
-          const fee = cost * cfg.costs.takerFeeRate;
+          const { fillPrice, notional: cost, fee } = modelFill('buy', candle.open, plan.quantity, cfg.costs);
           if (cost + fee <= cash) {
             cash -= cost + fee;
             position = {

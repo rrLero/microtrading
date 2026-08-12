@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import type { Candle } from '@microtrading/core';
+import { modelFill, type Candle, type CostParams } from '@microtrading/core';
 import { DbService } from '../db/db.service.js';
 import { journal, paperAccount } from '../db/schema.js';
 import { BybitDemoMirrorService } from './bybit-demo-mirror.service.js';
@@ -16,10 +16,8 @@ import { BybitDemoMirrorService } from './bybit-demo-mirror.service.js';
  * calibration comparison. Mirroring is fire-safe: it can never fail the paper fill.
  */
 
-export interface PaperCosts {
-  readonly takerFeeRate: number;
-  readonly slippageRate: number;
-}
+/** §6.2 costs — the backtester's own type, so the two can never drift apart. */
+export type PaperCosts = CostParams;
 
 export interface PaperState {
   readonly cash: number;
@@ -118,9 +116,7 @@ export class PaperBrokerService {
     reason: string,
     ts?: number,
   ): Promise<PaperState> {
-    const fillPrice = refPrice * (1 + costs.slippageRate);
-    const cost = quantity * fillPrice;
-    const fee = cost * costs.takerFeeRate;
+    const { fillPrice, notional: cost, fee } = modelFill('buy', refPrice, quantity, costs);
     if (cost + fee > state.cash) {
       await this.journalEvent('risk', { event: 'buy-rejected-insufficient-cash', symbol, quantity, refPrice });
       return state;
@@ -172,9 +168,7 @@ export class PaperBrokerService {
   ): Promise<PaperState> {
     if (state.positionQty <= 0) return state;
     const quantity = state.positionQty;
-    const fillPrice = refPrice * (1 - costs.slippageRate);
-    const proceeds = quantity * fillPrice;
-    const fee = proceeds * costs.takerFeeRate;
+    const { fillPrice, notional: proceeds, fee } = modelFill('sell', refPrice, quantity, costs);
     const pnl = proceeds - fee - quantity * state.avgEntryPrice;
     const next: PaperState = {
       ...state,
