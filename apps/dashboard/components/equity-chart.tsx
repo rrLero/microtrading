@@ -13,13 +13,14 @@ export interface EquityPoint {
  * crosshair + tooltip on hover with an 8px marker, text in ink tokens,
  * tabular figures on ticks.
  */
-export function EquityChart({ points }: { points: EquityPoint[] }) {
+export function EquityChart({ points, baseline }: { points: EquityPoint[]; baseline?: number }) {
   const [hover, setHover] = React.useState<number | null>(null);
   const svgRef = React.useRef<SVGSVGElement>(null);
 
   const W = 800;
   const H = 260;
-  const PAD = { l: 56, r: 16, t: 12, b: 28 };
+  // r leaves room for the last x-label, which otherwise clips at the plot edge.
+  const PAD = { l: 56, r: 34, t: 12, b: 28 };
 
   if (points.length < 2) {
     return (
@@ -33,10 +34,19 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
   const ys = points.map((p) => p.equity);
   const xMin = xs[0]!;
   const xMax = xs[xs.length - 1]!;
-  const yRange = Math.max(...ys) - Math.min(...ys);
-  const yPad = Math.max(yRange * 0.15, 2);
-  const yMin = Math.min(...ys) - yPad;
-  const yMax = Math.max(...ys) + yPad;
+
+  /*
+   * Auto-scaling to the data alone turns ±0.05% of drift into a rollercoaster:
+   * a 4 USDC wobble on a 10,000 account filled the full plot height and read as
+   * volatility that is not there. The domain is therefore anchored to the
+   * account's starting equity and held to a floor of ±0.5% around it, so the
+   * line stays visually flat until something actually happens.
+   */
+  const start = baseline ?? ys[0]!;
+  const MIN_HALF_SPAN = start * 0.005;
+  const reach = Math.max(MIN_HALF_SPAN, ...ys.map((v) => Math.abs(v - start))) * 1.15;
+  const yMin = start - reach;
+  const yMax = start + reach;
 
   const x = (ts: number) => PAD.l + ((ts - xMin) / (xMax - xMin || 1)) * (W - PAD.l - PAD.r);
   const y = (v: number) => H - PAD.b - ((v - yMin) / (yMax - yMin || 1)) * (H - PAD.t - PAD.b);
@@ -108,6 +118,20 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
             {new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           </text>
         ))}
+
+        {/* Where the account opened — without it, a flat line has no meaning. */}
+        <line
+          x1={PAD.l}
+          x2={W - PAD.r}
+          y1={y(start)}
+          y2={y(start)}
+          stroke="var(--baseline)"
+          strokeWidth={1}
+          strokeDasharray="4 4"
+        />
+        <text x={W - PAD.r} y={y(start) - 6} textAnchor="end" fontSize={10} fill="var(--muted-foreground)">
+          {baseline ? `opened at ${start.toFixed(0)}` : `window start ${start.toFixed(0)}`}
+        </text>
 
         <path d={path} fill="none" stroke="var(--series-1)" strokeWidth={2} strokeLinejoin="round" />
 

@@ -2,180 +2,245 @@
 
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, type AgentStatus } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { EquityChart } from '@/components/equity-chart';
+import { ChannelRail } from '@/components/channel-rail';
+import { summarise, severity } from '@/lib/journal-summary';
 
 const num = (v: number, digits = 2) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
+/** "4m ago" / "2h ago" — an absolute timestamp makes the reader do the subtraction. */
+function ago(iso: string | null, now: number): string {
+  if (!iso) return 'never';
+  const mins = Math.floor((now - Date.parse(iso)) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  return hrs < 48 ? `${hrs}h ago` : `${Math.floor(hrs / 24)}d ago`;
+}
+
+/** A scheduled job that stopped firing looks identical to one that never ran — unless we say when. */
+function Heartbeat({ label, at, now, dueMins }: { label: string; at: string | null; now: number; dueMins: number }) {
+  const late = !at || now - Date.parse(at) > dueMins * 60000 * 1.5;
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-1.5">
+      <span className="text-sm text-secondary-foreground">{label}</span>
+      <span className="readout text-sm" style={{ color: late ? 'var(--status-critical)' : 'var(--muted-foreground)' }}>
+        {late ? '⚠ ' : ''}
+        {ago(at, now)}
+      </span>
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
+  return (
+    <div>
+      <div className="legend">{label}</div>
+      <div className="readout mt-1 text-xl font-semibold leading-tight" style={tone ? { color: tone } : undefined}>
+        {value}
+      </div>
+      {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const status = useQuery({ queryKey: ['status'], queryFn: api.status });
   const equity = useQuery({ queryKey: ['equity'], queryFn: () => api.equity(720) });
-  const journal = useQuery({ queryKey: ['journal'], queryFn: () => api.journal(25) });
+  const journal = useQuery({ queryKey: ['journal'], queryFn: () => api.journal(30) });
   const [expandedId, setExpandedId] = React.useState<number | null>(null);
 
-  const s = status.data;
-  const initial = equity.data?.[0]?.equity ?? 10_000;
-  const pnl = s ? s.equity - initial : 0;
-  const pnlPct = initial > 0 ? (pnl / initial) * 100 : 0;
+  // Recomputed each render so relative times stay honest between refetches.
+  const now = Date.now();
+  const s: AgentStatus | undefined = status.data;
+  const tickLate = s?.health.lastDecisionAt ? now - Date.parse(s.health.lastDecisionAt) > 100 * 60000 : false;
+
+  const state = !s ? 'loading' : s.killSwitch ? 'halted' : !s.loopEnabled ? 'disabled' : tickLate ? 'stalled' : 'armed';
+  const stateCopy: Record<string, { text: string; tone: string }> = {
+    loading: { text: 'Connecting…', tone: 'var(--muted-foreground)' },
+    halted: { text: 'Halted — kill switch on', tone: 'var(--status-critical)' },
+    disabled: { text: 'Loop disabled', tone: 'var(--muted-foreground)' },
+    stalled: { text: 'No tick in over an hour', tone: 'var(--status-critical)' },
+    armed: { text: 'Armed and waiting', tone: 'var(--armed)' },
+  };
 
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">MicroTrading</h1>
-          <p className="text-sm text-muted-foreground">
-            {s ? `${s.symbol} · ${s.strategy.family} ${JSON.stringify(s.strategy.params)}` : 'Loading…'}
+          <h1 className="text-lg font-semibold tracking-tight">MicroTrading</h1>
+          <p className="readout text-sm text-muted-foreground">
+            {s ? `${s.symbol} · ${s.strategy.family}(${Object.values(s.strategy.params).join(',')}) · 4h` : 'Loading…'}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {s &&
-            (s.killSwitch ? (
-              <Badge variant="critical">⛔ kill switch ON</Badge>
-            ) : s.loopEnabled ? (
-              <Badge variant="good">✓ loop armed</Badge>
-            ) : (
-              <Badge>◌ loop disabled</Badge>
-            ))}
+          <span
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium"
+            style={{
+              color: stateCopy[state]!.tone,
+              background: state === 'armed' ? 'var(--armed-surface)' : 'transparent',
+              border: `1px solid ${state === 'armed' ? 'transparent' : 'var(--border)'}`,
+            }}
+          >
+            <span
+              className="inline-block h-1.5 w-1.5 rounded-full"
+              style={{ background: stateCopy[state]!.tone }}
+              aria-hidden
+            />
+            {stateCopy[state]!.text}
+          </span>
         </div>
       </header>
 
       {status.isError && (
         <Card>
-          <CardContent className="py-4 text-sm text-status-critical">
-            ✕ Cannot reach the agent API — is the agent running? ({String(status.error)})
+          <CardContent className="py-4 text-sm" style={{ color: 'var(--status-critical)' }}>
+            Cannot reach the agent API. Check the container is up:{' '}
+            <code className="readout">docker compose -f docker-compose.local.yml ps</code>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      {/* Lead with what the machine is watching, not what the account is worth. */}
+      {s?.channel && (
         <Card>
-          <CardHeader>
-            <CardTitle>Equity</CardTitle>
+          <CardHeader className="flex-row items-baseline justify-between">
+            <CardTitle>Breakout channel</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              last 4h close {num(s.channel.lastClose4h, 0)} · tick {ago(s.health.lastDecisionAt, now)}
+            </span>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">{s ? num(s.equity) : '—'}</div>
-            <div className="text-xs text-muted-foreground">USDC</div>
+            <ChannelRail channel={s.channel} price={s.markPrice} hasPosition={!!s.position} />
           </CardContent>
         </Card>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader>
-            <CardTitle>P&L (window)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className="text-2xl font-semibold"
-              style={{ color: pnl >= 0 ? 'var(--delta-up)' : 'var(--delta-down)' }}
-            >
-              {pnl >= 0 ? '▲' : '▼'} {num(Math.abs(pnl))}
-            </div>
-            <div className="text-xs text-muted-foreground">{pnlPct >= 0 ? '+' : '−'}{num(Math.abs(pnlPct))}% vs window start</div>
+          <CardContent className="space-y-4 py-5">
+            <Stat
+              label="Position"
+              value={s?.position ? `${s.position.qty.toFixed(5)} BTC` : 'Flat'}
+              sub={
+                s?.position
+                  ? `entry ${num(s.position.avgEntry, 0)} · stop ${s.position.stop ? num(s.position.stop, 0) : '—'}`
+                  : 'no open position'
+              }
+            />
+            <Stat label="Equity" value={s ? `${num(s.equity)} USDC` : '—'} sub={s ? `cash ${num(s.cash)}` : undefined} />
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="space-y-4 py-5">
+            <Stat
+              label="Cost basis"
+              value={s ? `${(s.costs.takerFeeRate * 100).toFixed(2)}% taker` : '—'}
+              sub={s ? `${s.costs.venue} · slippage floor ${(s.costs.slippageRate * 100).toFixed(2)}%` : undefined}
+            />
+            <Stat label="BTC mark" value={s ? num(s.markPrice, 0) : '—'} sub="from the last closed 1h candle" />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
-            <CardTitle>Position</CardTitle>
+            <CardTitle>Scheduled jobs</CardTitle>
           </CardHeader>
-          <CardContent>
-            {s?.position ? (
+          <CardContent className="pb-5">
+            {s ? (
               <>
-                <div className="text-2xl font-semibold">{s.position.qty.toFixed(5)}</div>
-                <div className="text-xs text-muted-foreground">
-                  BTC @ {num(s.position.avgEntry)} · stop {s.position.stop ? num(s.position.stop) : '—'}
-                </div>
+                <Heartbeat label="Trading tick" at={s.health.lastDecisionAt} now={now} dueMins={60} />
+                <Heartbeat label="Spread sample" at={s.health.lastSpreadSampleAt} now={now} dueMins={60} />
+                <Heartbeat label="Calibration probe" at={s.health.lastProbeAt} now={now} dueMins={1440} />
               </>
             ) : (
-              <>
-                <div className="text-2xl font-semibold">flat</div>
-                <div className="text-xs text-muted-foreground">no open position</div>
-              </>
+              <div className="text-sm text-muted-foreground">—</div>
             )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>BTC mark</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{s ? num(s.markPrice) : '—'}</div>
-            <div className="text-xs text-muted-foreground">
-              last candle {s?.lastCandleTs ? new Date(s.lastCandleTs).toLocaleTimeString() : '—'}
-            </div>
           </CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Equity — last 30 days</CardTitle>
+        <CardHeader className="flex-row items-baseline justify-between">
+          <CardTitle>Equity</CardTitle>
+          <span className="text-xs text-muted-foreground">
+            {s ? `${num(s.equity - s.initialCash)} USDC vs opening balance` : 'paper account'}
+          </span>
         </CardHeader>
         <CardContent>
-          <EquityChart points={(equity.data ?? []).map((p) => ({ ts: p.ts, equity: p.equity }))} />
+          <EquityChart points={(equity.data ?? []).map((p) => ({ ts: p.ts, equity: p.equity }))} baseline={s?.initialCash} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Journal — latest {journal.data?.length ?? 0} entries</CardTitle>
+          <CardTitle>Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="py-2 pr-4 font-medium">time</th>
-                  <th className="py-2 pr-4 font-medium">kind</th>
-                  <th className="py-2 font-medium">payload</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(journal.data ?? []).map((r) => (
-                  <React.Fragment key={r.id}>
-                    <tr
-                      className="cursor-pointer border-b border-border/50 align-top hover:bg-border/20"
-                      onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                      title="Click to expand payload"
+          <ul className="divide-y divide-border">
+            {(journal.data ?? []).map((r, i, all) => {
+              const sev = severity(r);
+              const day = new Date(r.at).toDateString();
+              // Times alone are ambiguous once the list spans midnight.
+              const newDay = i === 0 || new Date(all[i - 1]!.at).toDateString() !== day;
+              return (
+                <li key={r.id}>
+                  {newDay && (
+                    <div className="legend pt-3 pb-1">
+                      {new Date(r.at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </div>
+                  )}
+                  <button
+                    className="flex w-full items-baseline gap-3 py-2 text-left hover:bg-border/20 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{ outlineColor: 'var(--series-1)' }}
+                    onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                    aria-expanded={expandedId === r.id}
+                  >
+                    <span
+                      className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{
+                        background:
+                          sev === 'alert'
+                            ? 'var(--status-critical)'
+                            : sev === 'event'
+                              ? 'var(--delta-up)'
+                              : 'var(--baseline)',
+                      }}
+                      aria-hidden
+                    />
+                    <span className="readout w-14 shrink-0 text-xs text-muted-foreground">
+                      {new Date(r.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span
+                      className={`flex-1 text-sm ${sev === 'routine' ? 'text-secondary-foreground' : 'font-medium'}`}
                     >
-                      <td
-                        className="whitespace-nowrap py-2 pr-4 text-muted-foreground"
-                        style={{ fontVariantNumeric: 'tabular-nums' }}
-                      >
-                        <span className="mr-1 inline-block w-3 text-muted-foreground">
-                          {expandedId === r.id ? '▾' : '▸'}
-                        </span>
-                        {new Date(r.at).toLocaleString()}
-                      </td>
-                      <td className="py-2 pr-4">
-                        <Badge variant={r.kind === 'fill' ? 'good' : r.kind === 'risk' ? 'critical' : 'neutral'}>
-                          {r.kind === 'fill' ? '● ' : r.kind === 'risk' ? '⚠ ' : ''}
-                          {r.kind}
-                        </Badge>
-                      </td>
-                      <td className="max-w-0 truncate py-2 font-mono text-xs text-secondary-foreground">
-                        {JSON.stringify(r.payload)}
-                      </td>
-                    </tr>
-                    {expandedId === r.id && (
-                      <tr className="border-b border-border/50">
-                        <td colSpan={3} className="py-2">
-                          <pre className="overflow-x-auto rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed text-secondary-foreground">
-                            {JSON.stringify(r.payload, null, 2)}
-                          </pre>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {summarise(r)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{expandedId === r.id ? '▾' : '▸'}</span>
+                  </button>
+                  {expandedId === r.id && (
+                    <pre className="readout mb-2 overflow-x-auto rounded-md border border-border bg-background p-3 text-xs leading-relaxed text-secondary-foreground">
+                      {JSON.stringify(r.payload, null, 2)}
+                    </pre>
+                  )}
+                </li>
+              );
+            })}
+            {journal.data?.length === 0 && (
+              <li className="py-3 text-sm text-muted-foreground">
+                Nothing journalled yet. The loop writes a decision every hour at :02.
+              </li>
+            )}
+          </ul>
         </CardContent>
       </Card>
 
       <footer className="pb-4 text-center text-xs text-muted-foreground">
-        Read-only dashboard — the kill switch is CLI-only by design. Refreshes every minute.
+        Read-only by design — the kill switch is CLI-only. Refreshes every minute.
       </footer>
     </main>
   );

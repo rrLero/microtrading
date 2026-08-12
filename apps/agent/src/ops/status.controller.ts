@@ -1,10 +1,12 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { desc, eq, gte, and } from 'drizzle-orm';
+import { aggregate1hTo4h, donchianBounds, TIMEFRAME_MS } from '@microtrading/core';
 import { DbService } from '../db/db.service.js';
 import { journal } from '../db/schema.js';
 import { CandleRepository } from '../market-data/candle-repository.js';
 import { PaperBrokerService } from '../trading/paper-broker.service.js';
+import { btFor, type StrategyFamily } from '../experiments/experiment.service.js';
 
 /**
  * READ-ONLY HTTP API (SPEC Phase 3) — feeds the dashboard.
@@ -27,6 +29,9 @@ export class StatusController {
     const lastTs = await this.repo.latestTimestamp(symbol, '1h');
     const candles = lastTs !== null ? await this.repo.fetchSince(symbol, '1h', lastTs) : [];
     const price = candles[0]?.close ?? state.avgEntryPrice;
+    const family = this.config.get<StrategyFamily>('STRATEGY_FAMILY', 'donchian-breakout');
+    const params = JSON.parse(this.config.get<string>('STRATEGY_PARAMS', '{}')) as Record<string, number>;
+
     return {
       symbol,
       loopEnabled: this.config.get('ENABLE_TRADING_LOOP') === 'true',
@@ -38,11 +43,66 @@ export class StatusController {
           : null,
       markPrice: price,
       equity: this.broker.equity(state, price),
+      /** What the account opened with — the only honest baseline for the equity chart. */
+      initialCash: Number(this.config.get('PAPER_INITIAL_CASH', '10000')),
       lastCandleTs: lastTs,
-      strategy: {
-        family: this.config.get('STRATEGY_FAMILY', 'donchian-breakout'),
-        params: JSON.parse(this.config.get<string>('STRATEGY_PARAMS', '{}')),
+      strategy: { family, params },
+      channel: await this.channel(symbol, params, price),
+      costs: {
+        venue: this.config.get<string>('EXECUTION_VENUE', 'bybit'),
+        ...btFor(family).costs,
       },
+      health: await this.health(),
+    };
+  }
+
+  /**
+   * The corridor the strategy is watching, and how far price sits from each
+   * edge. For a breakout family that is flat most of the time, this is the only
+   * number that changes meaningfully day to day — the dashboard leads with it.
+   */
+  private async channel(symbol: string, params: Record<string, number>, price: number) {
+    const entryLookback = params['entryLookback'] ?? 0;
+    const exitLookback = params['exitLookback'] ?? 0;
+    if (entryLookback < 2 || exitLookback < 2) return null;
+
+    // Enough 1h history to build the entry channel with margin, nothing more.
+    const need = (entryLookback + 4) * 4;
+    const lastTs = await this.repo.latestTimestamp(symbol, '1h');
+    if (lastTs === null) return null;
+    const candles1h = await this.repo.fetchSince(symbol, '1h', lastTs - need * TIMEFRAME_MS['1h']);
+    const bounds = donchianBounds(aggregate1hTo4h(candles1h), entryLookback, exitLookback);
+    if (!bounds) return null;
+
+    return {
+      upper: bounds.upper,
+      lower: bounds.lower,
+      lastClose4h: bounds.close,
+      entryLookback,
+      exitLookback,
+      // Signed: negative means price is already through the edge.
+      toEntryPct: ((bounds.upper - price) / price) * 100,
+      toExitPct: ((price - bounds.lower) / price) * 100,
+    };
+  }
+
+  /** Liveness the dashboard can show without the operator reading logs. */
+  private async health() {
+    const latest = async (kind: string, event?: string): Promise<string | null> => {
+      const rows = await this.dbs.db
+        .select({ at: journal.at, payload: journal.payload })
+        .from(journal)
+        .where(eq(journal.kind, kind))
+        .orderBy(desc(journal.id))
+        .limit(60);
+      const hit = event ? rows.find((r) => (r.payload as Record<string, unknown>)['event'] === event) : rows[0];
+      return hit ? hit.at.toISOString() : null;
+    };
+    return {
+      lastDecisionAt: await latest('decision'),
+      lastSpreadSampleAt: await latest('ops', 'spread-sample'),
+      lastProbeAt: await latest('ops', 'calibration-probe'),
+      serverNow: new Date().toISOString(),
     };
   }
 

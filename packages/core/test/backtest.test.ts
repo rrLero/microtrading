@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { runBacktest, type BacktestConfig } from '../src/backtest/engine.js';
+import { donchianBounds } from '../src/strategies/donchian-breakout.js';
 import { computeMetrics, normCdf, normInv } from '../src/backtest/metrics.js';
 import { buildWalkForwardWindows } from '../src/backtest/walk-forward.js';
 import { computeEntryPlan, DEFAULT_RISK } from '../src/risk.js';
@@ -116,5 +117,26 @@ describe('normal functions (deflated Sharpe plumbing)', () => {
     }
     expect(normCdf(0)).toBeCloseTo(0.5, 6);
     expect(normInv(0.975)).toBeCloseTo(1.96, 2);
+  });
+});
+
+describe('donchianBounds', () => {
+  const bar = (high: number, low: number, close: number) => ({ high, low, close });
+
+  it('excludes the last candle — a candle cannot break out of itself', () => {
+    // Last bar has the highest high; the channel must ignore it.
+    const c = [bar(10, 5, 8), bar(12, 6, 9), bar(99, 1, 50)];
+    expect(donchianBounds(c, 2, 2)).toEqual({ upper: 12, lower: 5, close: 50 });
+  });
+
+  it('returns null until there is enough history for the longer lookback', () => {
+    expect(donchianBounds([bar(10, 5, 8), bar(11, 6, 9)], 5, 2)).toBeNull();
+  });
+
+  it('agrees with the signal the strategy actually fires', () => {
+    // close 13 sits above the 2-bar high of 12 → the strategy enters.
+    const c = [bar(10, 5, 8), bar(12, 6, 9), bar(13, 7, 13)];
+    const b = donchianBounds(c, 2, 2)!;
+    expect(b.close > b.upper).toBe(true);
   });
 });

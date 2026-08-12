@@ -8,8 +8,25 @@ export interface AgentStatus {
   position: { qty: number; avgEntry: number; stop: number | null; openedAt: number | null } | null;
   markPrice: number;
   equity: number;
+  initialCash: number;
   lastCandleTs: number | null;
   strategy: { family: string; params: Record<string, number> };
+  channel: {
+    upper: number;
+    lower: number;
+    lastClose4h: number;
+    entryLookback: number;
+    exitLookback: number;
+    toEntryPct: number;
+    toExitPct: number;
+  } | null;
+  costs: { venue: string; takerFeeRate: number; slippageRate: number };
+  health: {
+    lastDecisionAt: string | null;
+    lastSpreadSampleAt: string | null;
+    lastProbeAt: string | null;
+    serverNow: string;
+  };
 }
 
 export interface JournalRow {

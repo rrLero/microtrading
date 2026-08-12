@@ -19,6 +19,16 @@
   --status-critical: #d03b3b;
   --delta-up: #006300; /* success text, light */
   --delta-down: #d03b3b;
+  /*
+   * This agent is FLAT ~95% of the time by design. Its normal state is neither
+   * good nor bad — it is loaded and waiting, and green says "something is
+   * happening" when nothing is. Ochre carries "armed, holding"; green is
+   * reserved for realised fills and passing gates, red for halted.
+   */
+  --armed: #a06a12;
+  --armed-surface: rgba(160, 106, 18, 0.09);
+  --channel-track: #e6e4dc; /* the corridor the strategy watches */
+  --channel-fill: rgba(42, 120, 214, 0.13);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -36,6 +46,10 @@
     --status-critical: #d03b3b;
     --delta-up: #0ca30c;
     --delta-down: #e66767;
+    --armed: #d9a441;
+    --armed-surface: rgba(217, 164, 65, 0.12);
+    --channel-track: #2c2c2a;
+    --channel-fill: rgba(57, 135, 229, 0.18);
   }
 }
 
@@ -53,11 +67,43 @@
   --color-status-critical: var(--status-critical);
   --color-delta-up: var(--delta-up);
   --color-delta-down: var(--delta-down);
+  --color-armed: var(--armed);
+  --color-armed-surface: var(--armed-surface);
+  --color-channel-track: var(--channel-track);
+  --color-channel-fill: var(--channel-fill);
   --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/*
+ * Every number on this page is an instrument reading, so all of them are mono
+ * and tabular — figures line up column-wise and stop jittering on refresh.
+ * This is the page's type signature, not decoration.
+ */
+.readout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Micro-label above each reading — the panel's engraved legend. */
+.legend {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
