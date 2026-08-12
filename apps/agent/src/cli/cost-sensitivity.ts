@@ -23,6 +23,14 @@ import { ExperimentService, type StrategyFamily } from '../experiments/experimen
 
 /** §7.4 kills a config below PF 1.1; PF 1.0 is where gross edge is fully eaten. */
 const KILL_PF = 1.1;
+/** §6.2 pessimistic-mode go/no-go tier: Kraken standard-crypto spot Level 1. */
+const DECISION_RATE = 0.008;
+/** §7.4 refuses a go/no-go judgment below this much OOS + paper evidence. */
+const MIN_TRADES = 100;
+
+/** Key order in the pre-registered grid is not guaranteed to match the CLI arg. */
+const canon = (o: Record<string, number>): string =>
+  JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
 const RATES = [0.0026, 0.003, 0.0035, 0.0038, 0.005, 0.006, 0.008, 0.01, 0.012];
 
 async function main(): Promise<void> {
@@ -71,7 +79,7 @@ async function main(): Promise<void> {
         const { metrics } = experiments.evaluateConfig(family, params, dev, nTotal, costs);
         const pf = Number.isFinite(metrics.profitFactor) ? metrics.profitFactor : 0;
         if (!best || pf > best.pf) best = { params, pf, trades: metrics.nTrades, net: metrics.netReturnPct };
-        if (deployed && JSON.stringify(params) === JSON.stringify(deployed)) dep = { pf, trades: metrics.nTrades };
+        if (deployed && canon(params) === canon(deployed)) dep = { pf, trades: metrics.nTrades };
       }
       if (!best) continue;
       bestPfAt.set(takerFeeRate, best.pf);
@@ -91,6 +99,34 @@ async function main(): Promise<void> {
     console.log('\n--- Kraken standard-crypto spot ladder (verified 2026-08-12) ---');
     console.log('  L1 >$0: 0.80%   L2 >$2.5k: 0.60%   L3 >$10k: 0.38%   L4 >$25k: 0.35%   L5 >$50k: 0.30%');
     console.log('  §6.2 pessimistic-mode go/no-go is decided at L1 = 0.80%.');
+
+    // The whole grid at the decision tier — so "every config fails" is evidence, not inference.
+    console.log(`\n--- EVERY pre-registered config at the decision tier (${(DECISION_RATE * 100).toFixed(2)}% taker) ---`);
+    console.log('config                                   | PF    | trades | net%   | verdict');
+    let survivors = 0;
+    let maxTrades = 0;
+    for (const params of prereg.grid) {
+      const { metrics } = experiments.evaluateConfig(family, params, dev, nTotal, {
+        takerFeeRate: DECISION_RATE,
+        slippageRate: 0.0003,
+      });
+      const pf = Number.isFinite(metrics.profitFactor) ? metrics.profitFactor : 0;
+      const pass = pf >= KILL_PF;
+      if (pass) survivors++;
+      maxTrades = Math.max(maxTrades, metrics.nTrades);
+      console.log(
+        `${JSON.stringify(params).padEnd(40)} | ${pf.toFixed(2).padStart(5)} | ${String(metrics.nTrades).padStart(6)} | ` +
+          `${metrics.netReturnPct.toFixed(1).padStart(6)} | ${pass ? 'survives' : `FAILS (PF < ${KILL_PF})`}`,
+      );
+    }
+    console.log(`\n  ${survivors}/${prereg.grid.length} configs clear the §7.4 kill line at the decision tier.`);
+    if (maxTrades < MIN_TRADES) {
+      console.log(
+        `  §7.4 EVIDENCE FLOOR NOT MET: best config has ${maxTrades} OOS trades, minimum is ${MIN_TRADES}.\n` +
+          `  A formal go/no-go verdict is not yet licensed — report the direction, do not declare the kill.`,
+      );
+    }
+    console.log('  Holdout NOT evaluated: §7.2 burns it once, and nothing has earned it.');
   } finally {
     await app.close();
   }
