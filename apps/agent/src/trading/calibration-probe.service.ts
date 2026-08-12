@@ -59,6 +59,13 @@ export class CalibrationProbeService {
    * half-spread is directly observable on the venue we actually model costs for,
    * with a public read-only quote and no orders whatsoever.
    *
+   * Samples EXECUTION_VENUE, not the data venue: since 2026-08-12 we model Bybit
+   * costs (§2.1), and Kraken's book says nothing about what a Bybit fill costs.
+   * ponytail: reads global Bybit's public book, while §2.1 names Bybit EU as the
+   * live target — the EU book is thinner (BTC/USDC ~$7.7M/24h vs global), so this
+   * sample is a LOWER BOUND on the EU half-spread. Point it at the EU host if
+   * that gap ever matters more than the 0.03% floor that currently dominates.
+   *
    * This only RECORDS evidence; it changes no gate and places nothing.
    * Never throws — it is a cron, and a missing sample is not an incident.
    */
@@ -68,7 +75,7 @@ export class CalibrationProbeService {
       const family = this.config.get<StrategyFamily>('STRATEGY_FAMILY', 'donchian-breakout');
       const modeledSlippageRate = btFor(family).costs.slippageRate;
 
-      const ex = this.ingestion.createExchange();
+      const ex = this.ingestion.createExchange(this.config.get<string>('EXECUTION_VENUE', 'bybit'));
       const t = await ex.fetchTicker(symbol);
       const bid = t.bid ?? null;
       const ask = t.ask ?? null;

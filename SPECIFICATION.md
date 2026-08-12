@@ -38,11 +38,32 @@ its resolution in this version.
 ### 2.1 Market & venue
 
 - **Crypto spot.** 24/7 markets, native micro positions, free data.
-- **Live target: Kraken** (MiCA-licensed, Ireland/CBI; ESMA register verified
-  July 2026). **Paper venues:** local `PaperAdapter` (primary), **Bybit demo API**
+- **Data venue: Kraken** (deepest free 1h history for BTC/USDC; ingestion only).
+- **Execution venue: Bybit EU** *(changed 2026-08-12 — see §7.5 D2)*. Bybit EU
+  GmbH holds MiCAR CASP authorisation from Austria's FMA (28 May 2025, ESMA
+  register), passporting to all 29 EEA states including Poland, and lists
+  BTC/USDC. Spot fees are **0.10% maker / 0.10% taker** non-VIP.
+  - **Why the venue moved:** Kraken's *standard-crypto* spot Level 1 is 0.80%
+    taker (verified 2026-08-12) — 8× the retail rate at Bybit/OKX/Binance. Fees
+    there run ~600× the observed half-spread, so venue fee schedule, not strategy
+    quality, decides every result. No configuration of any family survives 0.80%.
+  - **The selection rule is ex-ante and binding:** execute on the cheapest venue
+    that (a) holds MiCA CASP authorisation valid in Poland, (b) lists BTC/USDC
+    with adequate depth for micro size, and (c) exposes a drivable API with a
+    demo endpoint. This rule is decidable from published fee schedules and the
+    ESMA register **without running a single backtest**, which is what makes it a
+    legitimate amendment rather than venue-shopping. Having chosen by the rule,
+    we do not re-shop after seeing results. OKX Europe (MFSA, Jan 2025, 0.10%)
+    is the equivalent alternative; Bybit wins only on already being integrated.
+  - ⚠️ Bybit EU's BTC/USDC book (~$7.7M/24h) is thinner than global Bybit's.
+    Immaterial at 10k notional, but it is the venue whose depth actually binds.
+- **Paper venues:** local `PaperAdapter` (primary), **Bybit demo API**
   (`api-demo.bybit.com`, real market data + simulated account) for exchange-level
-  integration in Phase 3. **Binance eliminated** (no MiCA license; EU lockout
-  since 2026-07-01). Coinbase sandbox is static mocks — unusable.
+  integration in Phase 3. Modelled venue and mirror venue are now the same
+  exchange, which is what makes the §6.3 comparison meaningful at all.
+- **Binance eliminated** (no MiCA license; EU lockout since 2026-07-01).
+  Coinbase sandbox is static mocks — unusable. **Kraken remains eliminated as an
+  execution venue on cost**, not on regulatory grounds — its licensing is fine.
 
 ### 2.2 Instrument: **BTC/USDC only in V1** *(changed in v0.3 — resolves R6, R11)*
 
@@ -201,7 +222,9 @@ strategy exits as taker. V1 default: taker entries (simplest honest model).
 ### 6.2 PaperAdapter fill model
 
 - **Taker:** fill at next candle open ± slippage, slippage = max(half-spread,
-  0.03%). Fees charged at Kraken taker tier.
+  0.03%). Fees charged at the **execution venue's** taker tier — Bybit EU
+  non-VIP, 0.10% (§2.1). Half-spread evidence is sampled from the execution
+  venue's book, not the data venue's (`ops/spread-sample`).
 - **Maker:** a resting limit fills only if the next candle's range **strictly
   crosses** the limit price (touch ≠ fill — queue position is unknowable), with
   configurable partial-fill fraction. Maker fills carry adverse-selection
@@ -317,6 +340,48 @@ appended, never rewritten.
   spent over the whole soak — it has taken no strategy fills), so it was corrected
   in place rather than reset. Holdout remains SEALED and is not evaluated until a
   configuration survives at the corrected basis.
+
+#### D2 — 2026-08-12 — execution venue moved Kraken → Bybit EU (0.80% → 0.10% taker)
+
+- **Original wording (§2.1):** "Live target: Kraken (MiCA-licensed, Ireland/CBI)."
+- **Deviation:** Kraken is retained as the *data* venue; **Bybit EU** becomes the
+  execution venue, and §6.2 charges its 0.10% taker tier.
+- **Reason:** D1 established that Kraken standard-crypto Level 1 charges 0.80%
+  taker, ~8× Bybit/OKX/Binance and ~600× the observed half-spread. At that rate
+  the fee schedule, not the strategy, determines every outcome: 0/6 donchian
+  configs clear the §7.4 kill line, and break-even sits at ≈0.55%. The original
+  venue choice was made on regulatory grounds (MiCA) in which Kraken and Bybit EU
+  are equally qualified — Bybit EU GmbH holds Austrian FMA CASP authorisation of
+  28 May 2025, ESMA-registered, passporting to Poland — so the cost difference
+  was never traded against a licensing advantage. It was simply never checked.
+- **Timing — READ THIS BEFORE TRUSTING ANY RESULT THAT FOLLOWS.** Unlike D1, this
+  deviation was decided **after** seeing donchian fail at 0.80%. That ordering is
+  exactly the risk profile the deviation log exists to make visible. Three things
+  contain it, and none of them fully removes it:
+  1. The venue rule in §2.1 is **ex-ante**: cheapest MiCA-authorised venue listing
+     BTC/USDC with a drivable API. It is decidable from published fee schedules
+     and the ESMA register with no backtest, and it selects Bybit EU (or OKX)
+     regardless of how any strategy performs.
+  2. It is **binding going forward**: having chosen by the rule, we do not
+     re-shop venues if results disappoint. A third venue change requires a
+     documented reason that is not "the last one failed".
+  3. The **holdout stays sealed**. A strong dev-window result at 0.10% is
+     permission to continue, NOT a verdict, precisely because we arrived at this
+     venue via a failure. The holdout is the only test not contaminated by that
+     path, and it is still worth exactly one evaluation.
+- **Trial accounting:** N UNCHANGED. Same 6 configs, same families, same windows,
+  same sealed holdout; one exogenous input constant changed uniformly. No new
+  configuration was introduced, so no new selection opportunity over *strategies*
+  exists. The selection opportunity that DOES exist is over *venues*, and §2.1's
+  rule plus item 2 above is what constrains it.
+- **The 0.80% results are retained as the Kraken-venue finding**, not retired:
+  they are the evidence for why the venue moved, and they remain the correct
+  answer to "does this work on Kraken?" — which is no.
+- **Reader impact:** every result before 2026-08-12 is superseded. The paper
+  account (10,000 USDC opened 2026-08-07) has taken no strategy fills and spent
+  3.91 USDC, so it is corrected in place rather than reset; the soak clock for
+  *strategy* evidence restarts at the corrected basis, while the Track A
+  infrastructure soak continues uninterrupted from 2026-08-07.
 
 ---
 

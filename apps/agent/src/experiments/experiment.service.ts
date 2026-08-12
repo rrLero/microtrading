@@ -46,15 +46,12 @@ const WARMUP_CANDLES = 720;
 
 export const DEFAULT_BT: BacktestConfig = {
   initialEquity: 10_000,
-  // Kraken standard-crypto spot, Level 1 (30-day volume > $0): 0.80% taker.
-  // Verified 2026-08-12 against kraken.com/features/fee-schedule. BTC/USDC takes
-  // the standard table, not the cheaper stablecoin/FX one — a stablecoin that is
-  // only the QUOTE currency does not qualify (Kraken's own example: BTC/DAI).
-  // Level 1 is the modelled tier per §6.2 pessimistic-mode: a live account starts
-  // at zero 30-day volume, and this strategy's turnover (10-25 round trips/yr)
-  // cannot hold a better tier through its own dry spells.
-  // Was 0.0026 until 2026-08-12 — wrong, and optimistic by 3.08x. See §7 deviation log.
-  costs: { takerFeeRate: 0.008, slippageRate: 0.0003 },
+  // Bybit EU spot, non-VIP: 0.10% taker (and 0.10% maker). Execution venue since
+  // 2026-08-12 (§2.1, §7.5 D2) — Kraken remains the DATA venue but charges 0.80%
+  // taker at Level 1, 8x the going retail rate, which no strategy here survives.
+  // History: 0.0026 (unverified, wrong) → 0.008 (Kraken L1, verified 2026-08-12)
+  // → 0.001 (Bybit EU, same day). See §7.5 for why each move was not result-driven.
+  costs: { takerFeeRate: 0.001, slippageRate: 0.0003 },
   risk: DEFAULT_RISK,
   atrPeriod: 14,
 };

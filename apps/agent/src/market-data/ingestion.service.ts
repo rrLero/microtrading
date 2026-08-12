@@ -23,8 +23,14 @@ export class IngestionService {
   ) {}
 
   /** Public so the §6.3 spread sampler can quote the SAME venue we model costs for. */
-  createExchange(): Exchange {
-    const id = this.config.get<string>('DATA_EXCHANGE', 'kraken');
+  /**
+   * `exchangeId` overrides the data venue — the spread sampler needs the book of
+   * the venue we EXECUTE on, which is not the one we ingest candles from.
+   * Public endpoints only; no keys are ever passed here, so this instance is
+   * structurally incapable of placing an order.
+   */
+  createExchange(exchangeId?: string): Exchange {
+    const id = exchangeId ?? this.config.get<string>('DATA_EXCHANGE', 'kraken');
     const ctor = (ccxt as unknown as Record<string, new (cfg: object) => Exchange>)[id];
     if (!ctor) throw new Error(`Unknown ccxt exchange id: ${id}`);
     return new ctor({ enableRateLimit: true });
