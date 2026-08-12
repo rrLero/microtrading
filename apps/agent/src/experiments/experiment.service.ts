@@ -135,6 +135,28 @@ export class ExperimentService {
     return { family: family as StrategyFamily, grid: payload.grid, holdoutFrom: payload.holdoutFrom, createdAt: row.at };
   }
 
+  /**
+   * Distinct configurations tried across EVERY family — the real selection pool.
+   *
+   * The Deflated Sharpe deflates for how many variants the winner was chosen
+   * from (Bailey & López de Prado). donchian-breakout was not picked out of its
+   * own 6 configs in isolation: sma-crossover and rsi-reversion were evaluated
+   * and discarded first, and had either survived, donchian would never have been
+   * deployed. Deflating against 6 prices in only the last round of a search that
+   * actually spanned 34, which understates the selection bias.
+   *
+   * Counted by distinct params hash, so re-running a config at a corrected cost
+   * basis (§7.5 D1/D2) does not inflate the pool — that is a re-measurement of
+   * the same configuration, not a new one.
+   */
+  async countDistinctConfigsAllFamilies(): Promise<number> {
+    const rows = await this.dbs.db
+      .select({ hash: experiments.paramsHash })
+      .from(experiments)
+      .where(eq(experiments.kind, 'trial'));
+    return new Set(rows.map((r) => r.hash).filter(Boolean)).size;
+  }
+
   async countTrials(family: string): Promise<number> {
     const rows = await this.dbs.db
       .select({ id: experiments.id })

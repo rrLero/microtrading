@@ -56,18 +56,30 @@ function dailyStrategyReturns(returns: { ts: number; r: number }[]): Map<number,
 }
 
 /**
- * Effective number of independent assets, two ways.
+ * Effective number of independent assets — Kish, and why not the spectral one.
  *
- * `kish` — the survey-sampling design effect M / (1 + (M-1)ρ̄) (Kish 1965),
- * which assumes every pair correlates equally. Cheap, but wrong-shaped here:
- * BTC-ETH are far more alike than BTC-MNT.
+ * These two measures answer DIFFERENT questions, and the distinction decides
+ * which belongs here:
  *
- * `spectral` — (Σλ)² / Σλ² over the correlation matrix's eigenvalues, the
- * measure López de Prado recommends for exactly this problem. Computed without
- * an eigensolver: Σλ = trace(C) = M, and Σλ² = trace(C²) = ΣᵢΣⱼ Cᵢⱼ² because C
- * is symmetric. It equals M for an identity matrix and 1 for a rank-one one.
+ *   Kish design effect, M / (1 + (M-1)ρ̄) — effective SAMPLE SIZE. Defined as
+ *   the number of uncorrelated observations that would give the same PRECISION
+ *   (variance of the estimator) as the correlated sample. For an equally
+ *   weighted mean of M equicorrelated series, Var = σ²/M · [1 + (M-1)ρ], so
+ *   this is exact, not a heuristic.
  *
- * We report both and use the lower — the more conservative claim about evidence.
+ *   Spectral, (Σλ)² / Σλ² — effective DIMENSIONALITY. The family that Cheverud
+ *   (2001), Nyholt (2004) and Li & Ji (2005) use to count the effective number
+ *   of independent TESTS, for adjusting a significance threshold under multiple
+ *   testing. It is also what López de Prado recommends for the number of
+ *   independent TRIALS in the Deflated Sharpe.
+ *
+ * §7.4's floor asks "is there enough evidence to judge this strategy" — a
+ * question about the precision of a pooled estimate. That is the design-effect
+ * question, so KISH governs. The spectral figure belongs to the DSR's trial
+ * count, not to the sample size, and is reported alongside only so nobody
+ * re-introduces it here as though the two were interchangeable: at ρ̄ = 0.3 it
+ * reads ~4.6 where Kish reads ~2.7, and using it would inflate the apparent
+ * evidence by roughly 70%.
  */
 function effectiveAssets(C: number[][]): { kish: number; spectral: number; rhoBar: number } {
   const M = C.length;
@@ -106,7 +118,9 @@ async function main(): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const nTotal = prereg.grid.length;
+    const gridN = prereg.grid.length;
+    // DSR deflates against the whole selection pool, not just this family's grid.
+    const nTotal = Math.max(gridN, await experiments.countDistinctConfigsAllFamilies());
 
     // Load every pair's dev window once; the grid re-reads it per config.
     const dev = new Map<string, Candle[]>();
@@ -118,10 +132,11 @@ async function main(): Promise<void> {
 
     const M = dev.size;
     console.log(`=== POOLED UNIVERSE WALK-FORWARD — ${family} ===`);
-    console.log(`Grid: ${nTotal} pre-registered configs (UNCHANGED). Universe: ${M} pairs from ${uni.dataVenue}.`);
+    console.log(`Grid: ${gridN} pre-registered configs (UNCHANGED). Universe: ${M} pairs from ${uni.dataVenue}.`);
+    console.log(`DSR deflates against N=${nTotal} — every distinct configuration tried across ALL families, not just this grid.`);
     console.log(`Dev window ends ${new Date(prereg.holdoutFrom).toISOString().slice(0, 10)} — holdout SEALED.`);
     console.log(`Costs: ${(btFor(family).costs.takerFeeRate * 100).toFixed(2)}% taker, ${(btFor(family).costs.slippageRate * 100).toFixed(2)}% slippage floor.`);
-    console.log(`Effective N from STRATEGY-return correlation (Kish design effect and the spectral measure); the lower is used.\n`);
+    console.log(`Effective N from STRATEGY-return correlation via the Kish design effect. Spectral shown for contrast only — it measures\ndimensionality (the DSR's trial count), not sample size, and is not used here.\n`);
 
     console.log('params                                  | trades | effN | ρ̄     | net%   | PF    | maxDD% | Sharpe | DSR   | fees/gross');
     const rows: { params: Record<string, number>; pf: number; trades: number; eff: number; dsr: number }[] = [];
@@ -157,7 +172,8 @@ async function main(): Promise<void> {
         }
       }
       const { kish, spectral, rhoBar } = effectiveAssets(C);
-      const mEff = Math.min(kish, spectral);
+      // Kish governs: the floor is a question about estimate precision, not dimensionality.
+      const mEff = kish;
 
       const m = computeMetricsFromParts(returns.map((x) => x.r), trades, nTotal, candleCount);
       const effTrades = Math.round(m.nTrades * (mEff / M));
