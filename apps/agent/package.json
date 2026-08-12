@@ -14,6 +14,7 @@
     "preregister": "node --env-file=.env dist/cli/preregister.js",
     "run-trials": "node --env-file=.env dist/cli/run-trials.js",
     "run-holdout": "node --env-file=.env dist/cli/run-holdout.js",
+    "cost-sensitivity": "node --env-file=.env dist/cli/cost-sensitivity.js",
     "status": "node --env-file=.env dist/cli/status.js",
     "calibrate-report": "node --env-file=.env dist/cli/calibrate-report.js",
     "calibration-probe": "node --env-file=.env dist/cli/calibration-probe.js",

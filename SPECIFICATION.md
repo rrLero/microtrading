@@ -275,6 +275,49 @@ turnover, fee+slippage share of gross P&L.
   infrastructure and the writeup — *that is a successful outcome.* The base
   rates say this is the most likely outcome; we commit to it in writing now.
 
+### 7.5 Deviation log
+
+Deviations from pre-registration are recorded here, with the timing of when each
+was recognised — the field that separates a low-bias correction from a
+result-driven one (Willroth & Atherton 2024, *Best Laid Plans*). Amendments are
+appended, never rewritten.
+
+#### D1 — 2026-08-12 — taker fee corrected 0.26% → 0.80%
+
+- **Original wording:** `DEFAULT_BT.costs.takerFeeRate = 0.0026`, annotated
+  "Kraken entry tier — SPEC §7 open item: verify actual tier."
+- **Deviation:** corrected to `0.008`, Kraken standard-crypto spot Level 1.
+- **Reason:** the open item was closed by checking the source. Kraken's published
+  schedule (kraken.com/features/fee-schedule, verified 2026-08-12) is 0.40%
+  maker / 0.80% taker at Level 1. BTC/USDC takes the standard-crypto table, not
+  the cheaper stablecoin/FX one: a stablecoin that is only the *quote* currency
+  does not qualify (Kraken's own worked example is BTC/DAI). The modelled 0.26%
+  was optimistic by 3.08x and matched no tier this account can reach.
+- **Timing:** recognised from an external published source, and committed to the
+  repository, BEFORE any re-run result was computed or seen. Low-bias category
+  ("new knowledge gained", pre-results).
+- **Tier choice is pre-committed, not selected:** go/no-go is decided at Level 1
+  (0.80%) per §6.2 pessimistic-mode. A live account starts at zero 30-day volume,
+  and this strategy's turnover (10-25 round trips/yr ≈ $17k-42k per 30 days at
+  best, clustered rather than even) cannot hold a better tier through its own dry
+  spells. Reported alongside is the **break-even taker rate**, so the verdict
+  follows from a computed number rather than from a choice of assumption.
+- **Trial accounting:** N is UNCHANGED. The grid, the families, the dev/holdout
+  boundary and the walk-forward windows are untouched; one input constant was
+  corrected uniformly across every config. No new configuration was introduced,
+  so no new selection opportunity exists (Bailey et al., *Statistical Overfitting
+  and Backtest Performance*: overfitting risk is driven by the number of variants
+  from which the best is selected). `cost-sensitivity` logs no trials.
+- **The 0.26% results are RETIRED, not retained.** They are superseded, and must
+  not be presented as an alternative to the corrected numbers. Choosing between
+  cost bases after seeing which flatters the strategy would manufacture exactly
+  the selection bias this section exists to prevent.
+- **Reader impact:** every pre-correction backtest and the paper equity curve to
+  date understate costs. The paper account is materially unaffected (3.91 USDC
+  spent over the whole soak — it has taken no strategy fills), so it was corrected
+  in place rather than reset. Holdout remains SEALED and is not evaluated until a
+  configuration survives at the corrected basis.
+
 ---
 
 ## 8. Operations *(resolves R10)*

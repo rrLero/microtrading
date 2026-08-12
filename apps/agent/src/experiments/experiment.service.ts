@@ -14,6 +14,7 @@ import {
   DEFAULT_RISK,
   type BacktestConfig,
   type Candle,
+  type CostParams,
   type Metrics,
   type Strategy,
   type Trade,
@@ -45,7 +46,15 @@ const WARMUP_CANDLES = 720;
 
 export const DEFAULT_BT: BacktestConfig = {
   initialEquity: 10_000,
-  costs: { takerFeeRate: 0.0026, slippageRate: 0.0003 }, // Kraken entry tier — SPEC §7 open item: verify actual tier
+  // Kraken standard-crypto spot, Level 1 (30-day volume > $0): 0.80% taker.
+  // Verified 2026-08-12 against kraken.com/features/fee-schedule. BTC/USDC takes
+  // the standard table, not the cheaper stablecoin/FX one — a stablecoin that is
+  // only the QUOTE currency does not qualify (Kraken's own example: BTC/DAI).
+  // Level 1 is the modelled tier per §6.2 pessimistic-mode: a live account starts
+  // at zero 30-day volume, and this strategy's turnover (10-25 round trips/yr)
+  // cannot hold a better tier through its own dry spells.
+  // Was 0.0026 until 2026-08-12 — wrong, and optimistic by 3.08x. See §7 deviation log.
+  costs: { takerFeeRate: 0.008, slippageRate: 0.0003 },
   risk: DEFAULT_RISK,
   atrPeriod: 14,
 };
@@ -146,11 +155,18 @@ export class ExperimentService {
   }
 
   /** Walk-forward evaluation of one config over the development window. */
+  /**
+   * `costsOverride` exists solely for cost-sensitivity analysis (break-even
+   * taker rate). It changes an input constant, never the grid or the windows,
+   * and this method does not log trials — so a sweep adds no selection
+   * opportunity and does not consume trial budget.
+   */
   evaluateConfig(
     family: StrategyFamily,
     params: Record<string, number>,
     devCandles: readonly Candle[],
     nTrialsForDsr: number,
+    costsOverride?: CostParams,
   ): { metrics: Metrics; windows: number } {
     const first = devCandles[0];
     const last = devCandles[devCandles.length - 1];
@@ -167,7 +183,8 @@ export class ExperimentService {
       const sliceFrom = Math.max(0, startIdx - WARMUP_CANDLES);
       const slice = devCandles.filter((c, i) => i >= sliceFrom && c.timestamp < w.testTo);
       const strategy = FACTORIES[family](params);
-      const result = runBacktest(slice, strategy, btFor(family));
+      const base = btFor(family);
+      const result = runBacktest(slice, strategy, costsOverride ? { ...base, costs: costsOverride } : base);
 
       // Count only the test window: trades entered inside it, returns inside it
       for (const t of result.trades) if (t.entryTs >= w.testFrom) pooledTrades.push(t);
