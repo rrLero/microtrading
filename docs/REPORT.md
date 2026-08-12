@@ -1,238 +1,287 @@
 # MicroTrading V1 — Evaluation Report
 
 **Status: DRAFT.** The holdout has not been evaluated. Sections marked
-`[PENDING HOLDOUT]` are written but unfilled, deliberately: §7.2 allows the
-holdout exactly one evaluation, and it is scheduled for the end of the soak.
-Everything else below is final.
+`[PENDING]` are structured but unfilled, deliberately: §7.2 permits the holdout
+exactly one evaluation and it is scheduled for the end of the soak. Everything
+else is final.
 
-| | |
-|---|---|
-| Period covered | 2026-08-07 → *(soak ends 2026-09-04)* |
-| Strategy families evaluated | 3 of 3 (sma-crossover, rsi-reversion, donchian-breakout) |
-| Distinct configurations tried | **34** |
-| Evaluation universe | 10 USDC spot pairs, Bybit |
-| Execution/data venue | Bybit EU (0.10% taker) |
-| Holdout | **SEALED** — 12 months from 2025-08-01 |
-| Protocol deviations | 3 (§7.5 D1–D3), all logged with timing |
+Written to the checklist in **Arnott, Harvey & Markowitz (2019), "A Backtesting
+Protocol in the Era of Machine Learning"** (*Journal of Financial Data Science*),
+whose seven categories are the section headings of §4–§10 below, plus the
+four-item disclosure demanded by Bailey & López de Prado's *Deflated Sharpe
+Ratio*.
 
 ---
 
-## 1. What this project was for
+## 1. Headline: the null, stated first
 
-An automated agent that trades small positions in BTC/USDC, paper-only in V1,
-built to find out whether a simple systematic strategy survives realistic costs
-— and, equally, to build an evaluation process honest enough that the answer
-could be trusted either way.
+**No strategy configuration cleared the pre-committed evaluation gate.** Three
+families, **34 distinct configurations**, evaluated at a verified cost basis
+across a ten-pair universe.
 
-§7 of the specification was written and frozen *before* Phase 1 code existed. It
-opens by naming the enemy:
+The final family (`donchian-breakout`) clears the §7.4 kill line on development
+data but fails two of the four conditions the project fixed in writing before
+any result existed:
 
-> The evidence says the main enemy is our own evaluation process: ~10 strategy
-> configurations tried on noise yields an expected in-sample Sharpe of ~1.57
-> (Bailey–Borwein–López de Prado–Zhu, AMS 2014), and >80% of day traders lose
-> net of costs (Barber et al.).
+| §7.4 condition | Required | Observed (dev, pooled) | |
+|---|---|---|---|
+| Profit factor after costs | ≥ 1.1 | 1.45 – 2.37 (6/6 configs) | PASS |
+| Minimum evidence | ≥ 100 trades | 215 raw / **59 effective** | **FAIL** |
+| Deflated Sharpe | > 0 at 95% | **0.82** | **FAIL** |
+| Holdout deflated Sharpe | > 0 at 95% | `[PENDING]` | — |
 
-And it pre-committed to the most likely outcome:
+**This is the pre-registered success condition, not a disappointment.** §7.4,
+frozen before Phase 1 code was written:
 
 > **Project stopping rule:** if after two full strategy families evaluated
 > honestly nothing passes, the correct output of this project is the
 > infrastructure and the writeup — *that is a successful outcome.* The base
 > rates say this is the most likely outcome; we commit to it in writing now.
 
-That commitment is the reason this report exists in the form it does.
+---
+
+## 2. Power: what this study could have detected
+
+**The most important section of a null report, and the one most often missing.**
+Without it, "we found nothing" is indistinguishable from "we could never have
+found anything" (Harvey & Liu 2020, *False (and Missed) Discoveries*).
+
+| | |
+|---|---|
+| Minimum detectable annualised Sharpe, 95%, N=34 | **1.04** |
+| Best configuration's observed Sharpe | **0.85** |
+| Verdict | Observed **below** the detection bar |
+
+**What this null does and does not establish:**
+
+- It **rules out** a persistent edge with annualised Sharpe materially above
+  **~1.04** in this strategy family, on this universe, at these costs. Had one
+  existed, this sample would have certified it.
+- It **does not rule out** a genuine edge *smaller* than that. The observed 0.85
+  is consistent both with a real but modest edge and with noise, and this data
+  cannot separate the two.
+
+So the honest claim is narrow: *donchian breakouts on liquid USDC majors do not
+produce a large, easily-detectable edge net of realistic costs.* Anyone reading
+this as "trend-following doesn't work" is over-reading it.
 
 ---
 
-## 2. Headline result
+## 3. Disclosure (Bailey & López de Prado's four items)
 
-*(Draft — to be finalised after the holdout evaluation.)*
+> "…asks the strategist to disclose: i) the number of independent trials carried
+> out (N); ii) the variance of the backtest results; iii) the sample length (T);
+> and iv) the skewness and kurtosis of the returns."
 
-Three strategy families were evaluated under the §7 protocol at a verified cost
-basis. The final family, `donchian-breakout`, clears the §7.4 kill line on
-development data pooled across a ten-pair universe, but **fails two of the four
-statistical conditions the project set for itself before seeing any results**:
-
-| §7.4 condition | Required | Observed (dev, pooled) | |
-|---|---|---|---|
-| Profit factor after costs | ≥ 1.1 | **1.45 – 2.37** (6/6 configs) | PASS |
-| Minimum evidence | ≥ 100 trades | 215 raw / **59 effective** | **FAIL** |
-| Deflated Sharpe | > 0 at 95% | **0.82** (N=34) | **FAIL** |
-| Holdout deflated Sharpe | > 0 at 95% | `[PENDING HOLDOUT]` | — |
-
-The gap is not marginal and it is not fixable by waiting: at the measured
-correlation the universe produces roughly 21 effective trades a year, so closing
-the evidence gap would take about two years.
+| Item | Value |
+|---|---|
+| N — distinct configurations tried, all families | **34** |
+| N — effective, after trial correlation | `[PENDING — see §11 limitations]` |
+| T — pooled return observations | ~10 pairs × dev window, per config |
+| Effective independent assets (Kish) | **2.2 – 2.9 of 10** |
+| Return shape | skew/kurtosis feed the DSR directly (`metrics.ts`) |
 
 ---
 
-## 3. What was built
+## 4. Research motivation *(AHM category 1)*
 
-Complete and operating unattended:
+**Economic foundation, fixed ex ante.** Donchian breakout is classical
+trend-following: the hypothesis is that crypto majors exhibit momentum
+persistence at multi-day horizons sufficient to overcome round-trip costs. The
+family was chosen *because* it is slow — SPEC records it as "the structural
+answer to the cost drag that killed both 1h families," a cost argument made
+before it was tested.
 
-- `packages/core` — framework-free domain: indicators, strategies, the §6.2 fill
-  model, walk-forward backtester, metrics including deflated Sharpe.
-- `apps/agent` — NestJS: Bybit ingestion (1h, 4h derived locally), Postgres via
-  Drizzle, risk engine (§5), `PaperBrokerService` (§6.2 pessimistic fills),
-  hourly trading loop on closed candles, Bybit demo calibration mirror, hourly
-  spread sampler, daily calibration probe, kill switch, read-only ops API.
-- `apps/dashboard` — Next.js, read-only.
-- §7 tooling — pre-registration, immutable grids, trial ledger keyed by cost
-  basis, walk-forward runner, pooled universe runner, cost-sensitivity sweep,
-  holdout guard.
-
-The one-code-path constraint (§4.1.1) holds: the backtester replays the same
-strategy, risk and fill code the live loop runs.
+**Pre-existence:** the grid was committed to git and journalled before any
+backtest (§7.1). Pre-registration is immutable; tooling refuses to run against
+the holdout without one.
 
 ---
 
-## 4. Method
+## 5. Multiple testing *(AHM category 2)*
 
-`[TO EXPAND — awaiting reporting-standard research]`
+Every configuration tried, successful and unsuccessful:
 
-- Pre-registration and trial accounting (§7.1)
-- Walk-forward with sealed holdout (§7.2)
-- Cost model and its verification (§6.2, §6.3)
-- Pooled multi-asset evaluation and effective sample size (§2.2)
+| Family | Configs | Best PF | Best Sharpe | Max trades | Outcome |
+|---|---|---|---|---|---|
+| rsi-reversion | 16 | 0.54 | −0.57 | 451 | Killed |
+| sma-crossover | 12 | 0.89 | −0.27 | 254 | Killed |
+| donchian-breakout | 6 | 1.75¹ | 0.91¹ | 135 | Does not clear gate |
+| **Total** | **34** | | | | |
+
+¹ single-pair figures from the trial ledger; pooled universe figures in §1.
+
+**The full inventory is the point, not an annex.** Two of three families lost
+money outright. Reporting only donchian would be the file-drawer problem in
+miniature, and would make its numbers unreadable — the deflated Sharpe is
+computed against **N=34**, the real selection pool, precisely because donchian
+was not chosen from its own six configs in isolation.
+
+**Budget discipline:** ≤20 configs per family (§7.1), never exceeded.
+MinBTL guidance (Bailey et al. 2014) suggests ≤45 independent configurations for
+5 years of data; 34 sits under it.
 
 ---
 
-## 5. Findings
+## 6. Data and sample *(AHM category 3)*
 
-### 5.1 The cost model was wrong, and it decided everything
+| | |
+|---|---|
+| Data venue | Bybit (same as execution — removes a basis error, §7.5 D3) |
+| Universe | 10 USDC spot pairs by ex-ante rule (§2.2) |
+| History | ~28 pair-years, earliest 2021-12 |
+| Timeframe | 1h ingested; 4h derived locally, closed candles only |
+| Holdout | 12 months from 2025-08-01, **SEALED** |
 
-The taker fee carried an unverified `0.0026` with the comment *"Kraken entry
-tier — SPEC §7 open item: verify actual tier"* from Phase 0 until 2026-08-12.
-Verified against Kraken's published schedule, the real Level 1 rate for
-BTC/USDC is **0.80%** — 3.08× the model, and BTC/USDC takes the standard-crypto
-table rather than the cheaper stablecoin one because a stablecoin that is only
-the *quote* currency does not qualify.
+**Integrity checks:** venue basis measured directly — Kraken vs Bybit over 2,160
+matched Q1-2026 bars gave median 0.019%, p90 0.056%, max 0.201% difference, zero
+bars beyond 0.30%. Data-source mixing is refused by tooling: the backfiller
+purges rows whose source differs from the venue being ingested rather than
+silently splicing two venues into one series.
 
-At the true rate, **no configuration of any family survives**: 0/6 donchian
-configs cleared the kill line, and break-even sat at ≈0.55% taker.
+**Selection rule was fixed before any backtest** and is decidable from exchange
+listings alone: USDC-quoted, no stablecoin leg, ≥200k 24h volume, ≥3y history.
+Pooled is the verdict; per-pair figures are a breakdown, never an alternative to
+select among.
 
-This is the single most consequential finding in the project, and it had nothing
-to do with strategy design. The fee schedule, not the entry rule, determined
-every result:
+---
 
-| taker | PF (BTC only, {40,10}) |
+## 7. Cross-validation *(AHM category 4)*
+
+- Walk-forward: rolling 18-month train / 6-month test, stepping 6 months; only
+  concatenated out-of-sample segments count.
+- Holdout sealed, one evaluation, tooling-enforced.
+- **No iterated out-of-sample.** No configuration was modified after seeing an
+  OOS result.
+- **True out-of-sample is live trading only.** The paper soak is the only
+  genuinely forward evidence and is reported separately (§10).
+
+---
+
+## 8. Costs, sensitivity, and capacity
+
+The dominant finding of the entire project.
+
+**The cost model was wrong.** `takerFeeRate` carried an unverified `0.0026` with
+the comment *"Kraken entry tier — SPEC §7 open item: verify actual tier"* from
+Phase 0 until 2026-08-12. Kraken's real Level 1 rate for BTC/USDC is **0.80%** —
+3.08× the model. BTC/USDC takes the standard-crypto table, not the cheaper
+stablecoin one, because a stablecoin that is only the *quote* currency does not
+qualify.
+
+**Sensitivity (BTC-only, {40,10}), and break-even:**
+
+| taker | PF |
 |---|---|
 | 0.10% | 1.75 |
 | 0.38% | 1.29 |
 | 0.60% | 1.05 |
 | **0.80%** | **0.88** |
 
-### 5.2 The venue, not the strategy, was the binding constraint
+**Break-even taker rate: ≈0.550%** for the §7.4 kill line, ≈0.657% for PF 1.0.
+At Kraken's 0.80%, **0/6 configs survive**. At Bybit EU's 0.10%, 6/6 do.
 
-Kraken's Level 1 spot taker (0.80%) is roughly **8×** the entry-tier rate at
-Bybit, Binance and OKX (0.10%), and about **600× the observed half-spread**. For
-a strategy at this size, market impact is negligible and the entire cost model is
-fees. Moving execution to Bybit EU — equally MiCA-authorised, so no regulatory
-trade-off — changed 0/6 configs surviving into 6/6.
+**Venue dominates signal.** Kraken Level 1 is ~8× Bybit/Binance/OKX and ~600×
+the observed half-spread. For retail-size systematic trading, venue selection is
+a larger lever than strategy design, and it is checkable in an afternoon.
 
-The lesson generalises: for retail-size systematic trading, **venue selection
-dominates signal quality**, and it is checkable in an afternoon from published
-fee schedules.
+**Slippage model validated per pair.** §6.2 charges max(half-spread, 0.03%).
+Sampled hourly on the execution venue: all 10 pairs under the floor, worst
+ADA/USDC at 0.0270% — **90% of it**. Model is pessimistic, but not by much on
+the thinner alts.
 
-### 5.3 One real trade, and what it cost
+**Capacity:** not a binding constraint at this size. ~1,000 USDC per position
+against multi-million daily volumes makes market impact negligible under the
+square-root law; the cost model is essentially all fees.
 
-The paper account took exactly one round trip:
-
-| | |
-|---|---|
-| 2026-08-07 12:02 | BUY 0.0154 BTC @ 65,001.49 — *"4h close above 40-candle high 64951"* |
-| 2026-08-09 21:38 | SELL @ 65,085.62 — kill-switch drill |
-
-Price moved **in its favour** (+1.29 USDC gross). Fees took −5.20. Net **−3.91**.
-A correct directional call that lost money to costs — the entire thesis of §5.1
-and §5.2 in one trade.
-
-### 5.4 Correlated assets do not multiply evidence
-
-Widening to ten pairs raised raw trade counts ~7×, but crypto majors move
-together. Measured on *strategy* returns (not asset returns — the strategy is
-flat most of the time, so pairs are rarely in position together), mean pairwise
-correlation is **0.27–0.39**, giving **2.2–2.9 effective independent assets of
-ten** by the Kish design effect.
-
-215 raw trades are therefore worth about **59 effective**. The evidence floor is
-not met, and the configuration closest to meeting it (99 effective) is the
-weakest performer.
-
-### 5.5 What the evaluation protocol caught
-
-Every one of these would have silently corrupted a result:
-
-| Defect | Consequence had it survived |
-|---|---|
-| Taker fee 3.08× understated | Every backtest and the paper curve optimistic |
-| §6.3 mirror read-back broken | Every demo fill journaled with null price/fee — calibration measuring nothing |
-| Fill model copy-pasted in 4 places | A §6.2 change would leave the probe validating a retired formula |
-| Calibration report pooled 3 cost bases | Aggregate deviation describing no model that exists |
-| Trial ledger keyed by params only | Corrected re-run would skip every config and report retired numbers |
-| DSR deflating against 6, not 34 | Selection bias priced at a sixth of its real size |
+**One real trade, as illustration.** The paper account took exactly one round
+trip: bought 0.0154 BTC at 65,001.49 on a genuine breakout signal, sold at
+65,085.62 during the kill-switch drill. Price moved *in its favour* (+1.29 gross);
+fees took −5.20; net **−3.91**. A correct directional call that lost money to
+costs.
 
 ---
 
-## 6. Protocol deviations
+## 9. Model dynamics, complexity, research culture *(AHM 5, 6, 7)*
+
+- **Complexity:** two parameters. No machine learning, no feature selection, no
+  black box. The curse of dimensionality is avoided by not inviting it.
+- **Structural change:** the dev window spans the entire 2022 bear market; §7.2
+  requires a long-only strategy to demonstrate it goes flat in bear segments, and
+  being flat for months is recorded as success rather than failure.
+- **No live-model tweaking:** the deployed configuration was never changed after
+  seeing results. `{55,20}` is the best pooled config; `{40,10}` is what runs.
+  Switching would have been post-hoc selection and is documented as declined.
+- **Research culture:** researcher and developer are the same person, which is
+  precisely why §7 is enforced by tooling rather than intention — the runner
+  refuses an unregistered grid, refuses the holdout, and prints N on every report.
+
+---
+
+## 10. Infrastructure result
+
+`[PENDING — soak completes 2026-09-04]`
+
+§7.4 is explicit that a soak qualifies *infrastructure*, not a strategy. This is
+where the project's actual deliverable is assessed: uptime, tick cadence,
+catch-up replay, kill-switch drills, watchdogs, calibration coverage.
+
+---
+
+## 11. Protocol deviations *(the register)*
 
 Three, all in `SPECIFICATION.md` §7.5 with the timing of when each was
-recognised — the field that separates a low-bias correction from a result-driven
-one (Willroth & Atherton 2024).
+recognised — the field separating a low-bias correction from a result-driven one
+(Willroth & Atherton 2024).
 
-- **D1** — taker fee 0.26% → 0.80%. Recognised from a published source and
-  committed **before** any re-run. Low-bias.
-- **D2** — execution venue Kraken → Bybit EU. Decided **after** seeing the
-  failure at 0.80%. Contained by an ex-ante venue rule, a no-re-shop commitment,
-  and the sealed holdout.
-- **D3** — multi-pair universe; data venue → Bybit. Also decided after a
-  disappointing result. Declared the final amendment.
+| | What | Timing | Bias risk |
+|---|---|---|---|
+| **D1** | Taker fee 0.26% → 0.80% | Recognised from a published source, committed **before** any re-run | Low |
+| **D2** | Execution venue Kraken → Bybit EU | **After** seeing failure at 0.80% | Contained by ex-ante venue rule + no-re-shop commitment |
+| **D3** | Multi-pair universe; data venue → Bybit | **After** DSR stalled at 0.70 | Declared final amendment |
 
-**The pattern is stated in the spec and repeated here:** two of three amendments
-followed setbacks. Each is individually defensible; the sequence is what a
-project looks like when it is talking itself into an answer. The sealed holdout
-is the control that remains.
+**Stated plainly: two of three deviations followed setbacks.** Each is
+individually defensible; the sequence is what a project looks like when it is
+talking itself into an answer. The sealed holdout is the remaining control.
 
----
-
-## 7. Holdout evaluation
-
-`[PENDING HOLDOUT]` — one evaluation, at the end of the soak, on the frozen
-specification. Result to be recorded here verbatim whatever it says.
-
----
-
-## 8. Infrastructure result
-
-`[PENDING SOAK COMPLETION 2026-09-04]`
-
-Uptime, tick cadence, catch-up replay, kill-switch drills, watchdog behaviour.
-§7.4 is explicit that a soak qualifies *infrastructure*, not a strategy — this
-is the section where the project's actual deliverable is assessed.
+**Known limitations:**
+- Effective *trial* count is not computed. The 34 configurations are themselves
+  correlated (same families, neighbouring parameters), so N=34 overstates the
+  independent search. Correcting it would *raise* DSR, so it is left uncorrected
+  as the conservative choice.
+- Bayesianized p-values under multiple priors (Harvey 2017 §IX.A) are not
+  computed.
+- The soak has produced one strategy fill. Live evidence is negligible.
 
 ---
 
-## 9. Conclusion
+## 12. Conclusion
 
 `[PENDING HOLDOUT]`
 
 ---
 
-## Appendix A — Reproducing every number here
+## Appendix A — Reproducing every number
 
 ```bash
-pnpm --filter @microtrading/agent run-universe -- donchian-breakout    # pooled result
+pnpm --filter @microtrading/agent run-universe -- donchian-breakout
 pnpm --filter @microtrading/agent cost-sensitivity -- donchian-breakout '{"entryLookback":40,"exitLookback":10}'
-pnpm --filter @microtrading/agent calibrate-report                      # §6.3 by component
+pnpm --filter @microtrading/agent calibrate-report
 ```
+
+Trial ledger, pre-registrations and the full journal live in Postgres; grids and
+the universe are in `experiments/`, git-tracked and immutable.
 
 ## Appendix B — Sources
 
+- Arnott, Harvey & Markowitz (2019), *A Backtesting Protocol in the Era of Machine Learning*, JFDS — the checklist this report follows
+- Harvey (2017), *Presidential Address: The Scientific Outlook in Financial Economics*, Journal of Finance
 - Bailey, Borwein, López de Prado & Zhu (2014), *Pseudo-Mathematics and Financial Charlatanism*, Notices of the AMS 61(5)
-- Bailey & López de Prado (2014), *The Deflated Sharpe Ratio*
-- Harvey & Liu (2015), *Backtesting*, Journal of Portfolio Management
+- Bailey & López de Prado (2014), *The Deflated Sharpe Ratio*, JPM 40(5)
+- Harvey & Liu (2015), *Backtesting*, JPM; Harvey & Liu (2020), *False (and Missed) Discoveries in Financial Economics*
+- Frazzini, Israel & Moskowitz (2012), *Trading Costs of Asset Pricing Anomalies*
 - Perold (1988), *The Implementation Shortfall: Paper vs. Reality*, JPM 14(3)
 - Hasbrouck, *Securities Trading: Principles and Procedures*, Ch. 8
-- Frazzini, Israel & Moskowitz (2012), *Trading Costs of Asset Pricing Anomalies*
 - Willroth & Atherton (2024), *Best Laid Plans*, AMPPS
 - Kish (1965), *Survey Sampling* — design effect
 - Cheverud (2001), Nyholt (2004), Li & Ji (2005) — effective number of independent tests

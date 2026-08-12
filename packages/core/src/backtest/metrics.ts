@@ -99,6 +99,38 @@ export function computeMetricsFromParts(
  * exceeds the expected max Sharpe of nTrials random strategies, accounting for
  * return skew/kurtosis and sample length. Uses per-period (hourly) SR.
  */
+/**
+ * Minimum detectable Sharpe — the smallest ANNUALISED Sharpe this sample could
+ * have certified at `confidence`, given the same trial count and return shape.
+ *
+ * Without this number a null result is unreadable: "we found nothing" and "we
+ * could never have found anything" look identical. Reporting it converts an
+ * absence of evidence into a bound — the effect size the study had the power to
+ * detect (Harvey & Liu 2020, *False (and Missed) Discoveries*; Harvey's 2017 AFA
+ * address makes power reporting an explicit obligation).
+ *
+ * Found by inverting the deflated Sharpe: DSR rises monotonically in the
+ * observed Sharpe, so a bisection on the hourly figure is exact enough. Returns
+ * NaN when DSR itself is undefined (T < 100).
+ */
+export function minimumDetectableSharpe(
+  returns: readonly number[],
+  nTrials: number,
+  confidence = 0.95,
+): number {
+  if (Number.isNaN(deflatedSharpeProbability(0, returns, nTrials))) return NaN;
+  let lo = 0;
+  let hi = 1; // hourly Sharpe of 1 is absurdly high — a safe upper bracket
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    const p = deflatedSharpeProbability(mid, returns, nTrials);
+    if (!Number.isFinite(p)) return NaN;
+    if (p < confidence) lo = mid;
+    else hi = mid;
+  }
+  return ((lo + hi) / 2) * Math.sqrt(HOURS_PER_YEAR);
+}
+
 export function deflatedSharpeProbability(srPeriod: number, returns: readonly number[], nTrials: number): number {
   const T = returns.length;
   if (T < 100 || nTrials < 1) return NaN;

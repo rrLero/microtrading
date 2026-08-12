@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { computeMetricsFromParts, type Candle, type Trade } from '@microtrading/core';
+import { computeMetricsFromParts, minimumDetectableSharpe, type Candle, type Trade } from '@microtrading/core';
 import { AppModule } from '../app.module.js';
 import { CandleRepository } from '../market-data/candle-repository.js';
 import { ExperimentService, btFor, type StrategyFamily } from '../experiments/experiment.service.js';
@@ -139,7 +139,7 @@ async function main(): Promise<void> {
     console.log(`Effective N from STRATEGY-return correlation via the Kish design effect. Spectral shown for contrast only — it measures\ndimensionality (the DSR's trial count), not sample size, and is not used here.\n`);
 
     console.log('params                                  | trades | effN | ρ̄     | net%   | PF    | maxDD% | Sharpe | DSR   | fees/gross');
-    const rows: { params: Record<string, number>; pf: number; trades: number; eff: number; dsr: number }[] = [];
+    const rows: { params: Record<string, number>; pf: number; trades: number; eff: number; dsr: number; sharpe: number; mde: number }[] = [];
 
     for (const params of prereg.grid) {
       const returns: { ts: number; r: number }[] = [];
@@ -185,7 +185,8 @@ async function main(): Promise<void> {
           `${m.sharpeAnnualized.toFixed(2).padStart(6)} | ${(Number.isNaN(m.deflatedSharpeProb) ? 0 : m.deflatedSharpeProb).toFixed(2).padStart(5)} | ` +
           `${Number.isFinite(m.feeShareOfGross) ? m.feeShareOfGross.toFixed(2) : 'n/a'}`,
       );
-      rows.push({ params, pf, trades: m.nTrades, eff: effTrades, dsr: m.deflatedSharpeProb });
+      const mde = minimumDetectableSharpe(returns.map((x) => x.r), nTotal, 0.95);
+      rows.push({ params, pf, trades: m.nTrades, eff: effTrades, dsr: m.deflatedSharpeProb, sharpe: m.sharpeAnnualized, mde });
       console.log(
         `    eff assets: Kish ${kish.toFixed(2)} / spectral ${spectral.toFixed(2)} of ${M} · per-pair PF: ` +
           perPair.map((p) => `${p.sym.split('/')[0]} ${p.pf.toFixed(2)}(${p.n})`).join('  '),
@@ -206,6 +207,21 @@ async function main(): Promise<void> {
       if (best.dsr < 0.95) {
         console.log(`DSR ${best.dsr.toFixed(2)} is below the 0.95 the §7.4 live gate wants — and that gate is measured on the HOLDOUT, not here.`);
       }
+    }
+    // Power: bound the null instead of merely asserting it.
+    const mdes = rows.map((r) => r.mde).filter((v) => Number.isFinite(v));
+    if (mdes.length) {
+      const lo = Math.min(...mdes);
+      const hi = Math.max(...mdes);
+      console.log(
+        `\nPOWER — minimum detectable annualised Sharpe at 95% with N=${nTotal}: ${lo.toFixed(2)} to ${hi.toFixed(2)}.`,
+      );
+      const bestRow = [...rows].sort((a, b) => b.pf - a.pf)[0]!;
+      console.log(
+        `  Best config's observed Sharpe is ${bestRow.sharpe.toFixed(2)} against its own bar of ${bestRow.mde.toFixed(2)} — ` +
+          `${bestRow.sharpe >= bestRow.mde ? 'ABOVE, so a real edge of this size WOULD have been detected.' : 'BELOW, so this sample could not certify an edge of that size either way.'}`,
+      );
+      console.log('  A null here rules out edges LARGER than this bar; it says nothing about smaller ones.');
     }
     console.log('Holdout NOT evaluated: §7.2 burns it once.');
   } finally {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runBacktest, type BacktestConfig } from '../src/backtest/engine.js';
 import { donchianBounds } from '../src/strategies/donchian-breakout.js';
-import { computeMetrics, normCdf, normInv } from '../src/backtest/metrics.js';
+import { computeMetrics, deflatedSharpeProbability, minimumDetectableSharpe, normCdf, normInv } from '../src/backtest/metrics.js';
 import { buildWalkForwardWindows } from '../src/backtest/walk-forward.js';
 import { computeEntryPlan, DEFAULT_RISK } from '../src/risk.js';
 import type { Candle, Signal, Strategy } from '../src/types.js';
@@ -138,5 +138,26 @@ describe('donchianBounds', () => {
     const c = [bar(10, 5, 8), bar(12, 6, 9), bar(13, 7, 13)];
     const b = donchianBounds(c, 2, 2)!;
     expect(b.close > b.upper).toBe(true);
+  });
+});
+
+describe('minimumDetectableSharpe', () => {
+  // Deterministic pseudo-noise: no Math.random, so the test cannot flake.
+  const noise = Array.from({ length: 4000 }, (_, i) => Math.sin(i * 12.9898) * 0.01);
+
+  it('is the Sharpe at which the deflated Sharpe reaches the confidence level', () => {
+    const mde = minimumDetectableSharpe(noise, 34, 0.95);
+    const hourly = mde / Math.sqrt(24 * 365);
+    expect(deflatedSharpeProbability(hourly, noise, 34)).toBeCloseTo(0.95, 2);
+  });
+
+  it('demands a bigger edge when more configurations were tried', () => {
+    expect(minimumDetectableSharpe(noise, 34, 0.95)).toBeGreaterThan(minimumDetectableSharpe(noise, 2, 0.95));
+  });
+
+  it('demands a bigger edge from a shorter sample', () => {
+    expect(minimumDetectableSharpe(noise.slice(0, 500), 34, 0.95)).toBeGreaterThan(
+      minimumDetectableSharpe(noise, 34, 0.95),
+    );
   });
 });
