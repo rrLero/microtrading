@@ -165,6 +165,27 @@ export class ExperimentService {
     nTrialsForDsr: number,
     costsOverride?: CostParams,
   ): { metrics: Metrics; windows: number } {
+    const p = this.evaluateParts(family, params, devCandles, costsOverride);
+    return {
+      metrics: computeMetricsFromParts(p.returns, p.trades, nTrialsForDsr, p.candleCount),
+      windows: p.windows,
+    };
+  }
+
+  /**
+   * The walk-forward pass, before metrics are computed.
+   *
+   * Split out so a multi-pair run can POOL raw returns and trades across the
+   * universe and compute metrics once over the pooled set (SPEC §2.2:
+   * pooled is the verdict). Averaging per-pair metrics instead would weight a
+   * 3-trade pair equally with a 90-trade one.
+   */
+  evaluateParts(
+    family: StrategyFamily,
+    params: Record<string, number>,
+    devCandles: readonly Candle[],
+    costsOverride?: CostParams,
+  ): { returns: number[]; trades: Trade[]; candleCount: number; windows: number } {
     const first = devCandles[0];
     const last = devCandles[devCandles.length - 1];
     if (!first || !last) throw new Error('No development candles.');
@@ -194,10 +215,7 @@ export class ExperimentService {
       }
     }
 
-    return {
-      metrics: computeMetricsFromParts(pooledReturns, pooledTrades, nTrialsForDsr, candleCount),
-      windows: windows.length,
-    };
+    return { returns: pooledReturns, trades: pooledTrades, candleCount, windows: windows.length };
   }
 
   async logTrial(family: string, params: Record<string, number>, metrics: Metrics, windows: number): Promise<void> {

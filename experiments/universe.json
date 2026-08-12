@@ -1,0 +1,32 @@
+{
+  "_note": "PRE-REGISTERED EVALUATION UNIVERSE (SPEC §2.2, §7.5 D3). Selected 2026-08-12 by the ex-ante rule below, BEFORE any multi-pair backtest was run. Pooled is the verdict; per-pair figures are a breakdown, never an alternative result to choose between. Do not edit to add or drop pairs after seeing results — that is asset-mining.",
+  "selectedAt": "2026-08-12",
+  "dataVenue": "bybit",
+  "executionVenue": "bybit",
+  "rule": {
+    "quote": "USDC",
+    "excludes": "either leg a stablecoin or FX token",
+    "minQuoteVolume24h": 200000,
+    "minHistoryYears": 3,
+    "decidableWithoutBacktest": true
+  },
+  "pairs": [
+    { "symbol": "BTC/USDC", "historyFrom": "2021-12-09", "quoteVolume24hAtSelection": 7121488 },
+    { "symbol": "ETH/USDC", "historyFrom": "2021-12-09", "quoteVolume24hAtSelection": 5017798 },
+    { "symbol": "XRP/USDC", "historyFrom": "2021-12-22", "quoteVolume24hAtSelection": 2314166 },
+    { "symbol": "SOL/USDC", "historyFrom": "2021-12-23", "quoteVolume24hAtSelection": 718532 },
+    { "symbol": "ADA/USDC", "historyFrom": "2022-08-23", "quoteVolume24hAtSelection": 436958 },
+    { "symbol": "DOGE/USDC", "historyFrom": "2022-07-08", "quoteVolume24hAtSelection": 415365 },
+    { "symbol": "ARB/USDC", "historyFrom": "2023-03-23", "quoteVolume24hAtSelection": 319591 },
+    { "symbol": "SUI/USDC", "historyFrom": "2023-05-03", "quoteVolume24hAtSelection": 300820 },
+    { "symbol": "MNT/USDC", "historyFrom": "2023-07-17", "quoteVolume24hAtSelection": 294965 },
+    { "symbol": "AVAX/USDC", "historyFrom": "2022-08-23", "quoteVolume24hAtSelection": 212836 }
+  ],
+  "excluded": [
+    { "symbol": "CC/USDC", "reason": "history 0.8y < 3y" },
+    { "symbol": "SWELL/USDC", "reason": "history 1.8y < 3y" },
+    { "symbol": "GRAM/USDC", "reason": "history 2.0y < 3y" },
+    { "symbol": "USDE/USDC", "reason": "stablecoin leg" },
+    { "symbol": "USDG/USDC, USDPT/USDC, EURC/USDC, RLUSD/USDC, USD1/USDC, USDQ/USDC", "reason": "stablecoin or FX leg" }
+  ]
+}

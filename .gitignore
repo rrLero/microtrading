@@ -13,3 +13,6 @@ data/*.csv
 .env
 .env.*
 !.env.example
+
+# Local data archive (Kraken candle backup before the D3 venue migration)
+data-archive/

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, ne, sql } from 'drizzle-orm';
 import type { Candle, Timeframe } from '@microtrading/core';
 import { DbService } from '../db/db.service.js';
 import { candles } from '../db/schema.js';
@@ -75,6 +75,34 @@ export class CandleRepository {
     await this.dbs.db
       .delete(candles)
       .where(and(eq(candles.symbol, symbol), eq(candles.timeframe, timeframe)));
+  }
+
+  /** Rows stored under a source other than the expected one — i.e. a venue change we must not silently splice. */
+  async countBySourceOtherThan(symbol: string, source: string): Promise<number> {
+    const rows = await this.dbs.db
+      .select({ n: sql<string | number>`count(*)` })
+      .from(candles)
+      .where(and(eq(candles.symbol, symbol), ne(candles.source, source)));
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  async countRows(symbol: string, timeframe: Timeframe): Promise<number> {
+    const rows = await this.dbs.db
+      .select({ n: sql<string | number>`count(*)` })
+      .from(candles)
+      .where(and(eq(candles.symbol, symbol), eq(candles.timeframe, timeframe)));
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  async earliestTimestamp(symbol: string, timeframe: Timeframe): Promise<number | null> {
+    const rows = await this.dbs.db
+      .select({ ts: sql<string | number | null>`min(${candles.ts})` })
+      .from(candles)
+      .where(and(eq(candles.symbol, symbol), eq(candles.timeframe, timeframe)));
+    const raw = rows[0]?.ts;
+    if (raw === null || raw === undefined) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
   }
 
   async latestTimestamp(symbol: string, timeframe: Timeframe): Promise<number | null> {
