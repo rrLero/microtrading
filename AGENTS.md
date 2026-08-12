@@ -61,12 +61,14 @@ Typecheck without emitting: `cd apps/agent && ./node_modules/.bin/tsc -p tsconfi
 See `docs/WORKLOG.md` for the running log of what has been done and why.
 Update it after every significant operational or engineering change.
 
-## Operational state (as of 2026-08-11 — update when it changes)
+## Operational state (as of 2026-08-12 — update when it changes)
 
 - Agent runs in Docker on this Mac (`docker-compose.local.yml`, same compose
   project + `pgdata` volume as dev compose → data is shared with host tooling
   on port 55432). Dashboard runs separately via `pnpm --filter @microtrading/dashboard dev`.
-- Phase 3 soak in progress: strategy `donchian-breakout(40,10)` on BTC/USDC 4h,
+- Phase 3 soak in progress: strategy `donchian-breakout(40,10)` on BTC/USDC 4h
+  (NOTE 2026-08-12: no config survives verified costs — see WORKLOG; awaiting
+  human decision on §7.4 stopping rule),
   paper account started 2026-08-07 with 10,000 USDC.
 - Kill-switch drill completed 2026-08-09/10 (flatten verified, halt verified,
   resume verified). Position currently flat post-drill.

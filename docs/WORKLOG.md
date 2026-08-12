@@ -7,6 +7,59 @@ SPECIFICATION.md — scaffold, ingestion/backfill 2019→now, §7 tooling,
 backtester, three pre-registered strategy families evaluated, risk engine,
 paper broker, trading loop, dashboard, watchdogs, ntfy alerts.)
 
+## 2026-08-12 (afternoon) — the taker fee was wrong by 3x; no config survives
+
+Chased the `// SPEC §7 open item: verify actual tier` comment that had been
+sitting on the cost model since Phase 0. Verifying it ended the strategy search.
+
+- **The fee** (commit 373337a): Kraken standard-crypto spot Level 1 is **0.80%
+  taker** (0.40% maker), verified against kraken.com/features/fee-schedule.
+  BTC/USDC takes that table, NOT the cheaper stablecoin/FX one — a stablecoin
+  that is only the *quote* currency does not qualify (Kraken's own worked example
+  is BTC/DAI). The model carried 0.26%: optimistic by 3.08x, matching no tier
+  this account can reach. `btFor()` feeds both the backtester and the live loop,
+  so every backtest and the paper curve understated costs.
+- **Protocol first, number second.** The correction was committed, and the §7.5
+  deviation log written, BEFORE any re-run was executed — so the cost basis
+  cannot have been chosen to flatter the result. Tier for go/no-go pre-committed
+  to Level 1 per §6.2 pessimistic-mode. N unchanged (same 6 configs, same windows,
+  same sealed holdout; one input constant corrected uniformly).
+- **`cost-sensitivity` CLI** (new, read-only, logs no trials): sweeps takerFeeRate
+  over the unchanged pre-registered grid and reports the break-even rate, so the
+  verdict follows from a computed number instead of a choice of assumption.
+- **Result — 0/6 configs clear the §7.4 kill line at 0.80%:**
+
+  | config | PF | trades | net% |
+  |---|---|---|---|
+  | {20,10} | 0.69 | 135 | -10.5 |
+  | {20,20} | 0.63 | 116 | -8.6 |
+  | **{40,10} deployed** | **0.88** | **93** | **-3.2** |
+  | {40,20} | 0.83 | 80 | -0.5 |
+  | {55,10} | 0.80 | 83 | -4.7 |
+  | {55,20} | 0.73 | 72 | -1.9 |
+
+  Deployed config break-even: PF crosses the 1.1 kill line at ≈0.550% taker and
+  1.00 at ≈0.657%. At the retired 0.26% it showed PF 1.47 / +7.1% — the entire
+  apparent edge was the fee error. Two configs exceed the §7.4 100-trade evidence
+  floor (135, 116) and fail decisively; the deployed one has 93, seven short, so
+  a formal kill of that specific config is not yet licensed by the rule.
+- **Holdout NOT evaluated.** §7.2 burns it once and nothing has earned it.
+- **Redeployed** so the live paper loop runs the corrected 0.80%; verified in
+  container (`takerFeeRate: 0.008`), tick at 07:02 UTC clean, still flat.
+- **Spread-vs-volatility, preliminary** (n=20, joins ops/spread-sample to the 1h
+  candle's high-low range): volatile half averages 0.0028% half-spread vs 0.0011%
+  calm — real but tiny, and the worst sample anywhere is 0.0074%, still 4x under
+  the 0.03% modelled floor. Correlation is only 0.084 and this window contains no
+  actual stress event (mean hourly range 0.33%), so it is directionally
+  reassuring and statistically thin. The method exists now; it needs weeks and a
+  volatile stretch to mean anything.
+- **Open decision (human):** §7.4's project stopping rule says the correct output
+  is the infrastructure plus the writeup, and donchian was the third and final
+  family. The counter-argument is that the strategy clears the kill line at any
+  rate ≤0.55% and average turnover might sustain Level 3-4. Reopening the tier
+  *after* seeing 0.55% is the selection bias §7.5 exists to prevent — recorded
+  here so the choice is made in daylight either way.
+
 ## 2026-08-12 — one fill model, four call sites (§6.2 single-sourced)
 
 Day-5 soak check clean: 57 decision+equity pairs over 48h, no risk/error
