@@ -21,6 +21,15 @@ export interface AgentStatus {
     toExitPct: number;
   } | null;
   costs: { venue: string; takerFeeRate: number; slippageRate: number };
+  spread: {
+    pairs: number;
+    at: string;
+    modeledSlippageRate: number;
+    worstSymbol: string;
+    worstHalfSpreadRate: number;
+    worstUtilisation: number;
+    breaches: string[];
+  } | null;
   health: {
     lastDecisionAt: string | null;
     lastSpreadSampleAt: string | null;

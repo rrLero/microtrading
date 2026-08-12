@@ -67,6 +67,58 @@ function compact(p: Record<string, unknown>): string {
     .join(' · ');
 }
 
+/**
+ * Fold each hourly spread sweep into one row.
+ *
+ * The sampler writes one row per pair, so a 10-pair universe emits 240 rows a
+ * day and would bury the single hourly decision that actually matters. The
+ * sweep is still one event to a reader; only the storage is per-pair.
+ */
+export interface FeedItem {
+  key: string;
+  at: string;
+  text: string;
+  sev: 'alert' | 'event' | 'routine';
+  rows: JournalRow[];
+}
+
+export function toFeed(rows: JournalRow[]): FeedItem[] {
+  const out: FeedItem[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]!;
+    const isSweep = r.kind === 'ops' && (r.payload as Record<string, unknown>)['event'] === 'spread-sample';
+    if (!isSweep) {
+      out.push({ key: String(r.id), at: r.at, text: summarise(r), sev: severity(r), rows: [r] });
+      continue;
+    }
+    // Absorb the rest of this sweep — same event, written within a minute.
+    const group: JournalRow[] = [r];
+    while (i + 1 < rows.length) {
+      const n = rows[i + 1]!;
+      const alsoSweep = n.kind === 'ops' && (n.payload as Record<string, unknown>)['event'] === 'spread-sample';
+      if (!alsoSweep || Date.parse(r.at) - Date.parse(n.at) > 60_000) break;
+      group.push(n);
+      i++;
+    }
+    const worst = group.reduce((a, b) =>
+      ((b.payload as any).halfSpreadRate ?? 0) > ((a.payload as any).halfSpreadRate ?? 0) ? b : a,
+    );
+    const w = worst.payload as any;
+    const breaches = group.filter((g) => (g.payload as any).exceedsModel);
+    out.push({
+      key: `sweep-${r.id}`,
+      at: r.at,
+      text:
+        `Spread swept ${group.length} pair${group.length === 1 ? '' : 's'} on ${w.venue} — widest ` +
+        `${w.symbol} ${(w.halfSpreadRate * 100).toFixed(4)}% vs ${(w.modeledSlippageRate * 100).toFixed(4)}% modelled` +
+        (breaches.length ? ` · ${breaches.length} OVER the model` : ''),
+      sev: breaches.length ? 'alert' : 'routine',
+      rows: group,
+    });
+  }
+  return out;
+}
+
 /** Rows an operator should notice without reading: anything that halted or broke something. */
 export function severity(row: JournalRow): 'alert' | 'event' | 'routine' {
   const e = (row.payload as Record<string, unknown>)['event'];

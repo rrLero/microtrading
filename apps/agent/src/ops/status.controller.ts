@@ -53,6 +53,7 @@ export class StatusController {
         ...btFor(family).costs,
       },
       health: await this.health(),
+      spread: await this.spreadCoverage(),
     };
   }
 
@@ -83,6 +84,45 @@ export class StatusController {
       // Signed: negative means price is already through the edge.
       toEntryPct: ((bounds.upper - price) / price) * 100,
       toExitPct: ((price - bounds.lower) / price) * 100,
+    };
+  }
+
+  /**
+   * Worst half-spread in the latest sweep against the modelled floor.
+   *
+   * §6.2 charges max(half-spread, 0.03%). While every pair sits under the floor
+   * the model is pessimistic; the first pair to cross it makes paper results
+   * optimistic, which is the direction that hurts. ADA has been running at ~90%
+   * of the floor, so this is a margin worth watching rather than a formality.
+   */
+  private async spreadCoverage() {
+    const rows = await this.dbs.db
+      .select({ at: journal.at, payload: journal.payload })
+      .from(journal)
+      .where(eq(journal.kind, 'ops'))
+      .orderBy(desc(journal.id))
+      .limit(120);
+    const samples = rows.filter((r) => (r.payload as Record<string, unknown>)['event'] === 'spread-sample');
+    if (samples.length === 0) return null;
+
+    // The most recent sweep only — one batch, written in a single insert.
+    const newestAt = samples[0]!.at.getTime();
+    const batch = samples
+      .filter((r) => newestAt - r.at.getTime() < 60_000)
+      .map((r) => r.payload as { symbol: string; halfSpreadRate: number; modeledSlippageRate: number });
+    if (batch.length === 0) return null;
+
+    const worst = batch.reduce((a, b) => (b.halfSpreadRate > a.halfSpreadRate ? b : a));
+    const modeled = worst.modeledSlippageRate;
+    return {
+      pairs: batch.length,
+      at: samples[0]!.at.toISOString(),
+      modeledSlippageRate: modeled,
+      worstSymbol: worst.symbol,
+      worstHalfSpreadRate: worst.halfSpreadRate,
+      /** 1.0 means the worst pair is exactly at the floor; above 1.0 the model under-charges. */
+      worstUtilisation: modeled > 0 ? worst.halfSpreadRate / modeled : 0,
+      breaches: batch.filter((b) => b.halfSpreadRate > modeled).map((b) => b.symbol),
     };
   }
 

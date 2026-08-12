@@ -6,7 +6,7 @@ import { api, type AgentStatus } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EquityChart } from '@/components/equity-chart';
 import { ChannelRail } from '@/components/channel-rail';
-import { summarise, severity } from '@/lib/journal-summary';
+import { toFeed } from '@/lib/journal-summary';
 
 const num = (v: number, digits = 2) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -51,7 +51,7 @@ export default function DashboardPage() {
   const status = useQuery({ queryKey: ['status'], queryFn: api.status });
   const equity = useQuery({ queryKey: ['equity'], queryFn: () => api.equity(720) });
   const journal = useQuery({ queryKey: ['journal'], queryFn: () => api.journal(30) });
-  const [expandedId, setExpandedId] = React.useState<number | null>(null);
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   // Recomputed each render so relative times stay honest between refetches.
   const now = Date.now();
@@ -142,6 +142,45 @@ export default function DashboardPage() {
               value={s ? `${(s.costs.takerFeeRate * 100).toFixed(2)}% taker` : '—'}
               sub={s ? `${s.costs.venue} · slippage floor ${(s.costs.slippageRate * 100).toFixed(2)}%` : undefined}
             />
+            {/*
+              The slippage model is only pessimistic while every pair stays under
+              the floor. Showing the worst pair's share of it makes the margin a
+              thing you can watch, rather than something you find out by breaching.
+            */}
+            {s?.spread && (
+              <div>
+                <div className="legend">Widest spread vs model</div>
+                <div className="readout mt-1 text-xl font-semibold leading-tight">
+                  {(s.spread.worstUtilisation * 100).toFixed(0)}%
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    {s.spread.worstSymbol.split('/')[0]}
+                  </span>
+                </div>
+                <div
+                  className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full"
+                  style={{ background: 'var(--channel-track)' }}
+                  role="img"
+                  aria-label={`Widest half-spread is ${(s.spread.worstUtilisation * 100).toFixed(0)} percent of the modelled floor`}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(100, s.spread.worstUtilisation * 100)}%`,
+                      background: s.spread.breaches.length
+                        ? 'var(--status-critical)'
+                        : s.spread.worstUtilisation > 0.8
+                          ? 'var(--armed)'
+                          : 'var(--series-1)',
+                    }}
+                  />
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {s.spread.breaches.length
+                    ? `${s.spread.breaches.join(', ')} OVER the model — paper costs now optimistic`
+                    : `${s.spread.pairs} pairs sampled, all under the ${(s.spread.modeledSlippageRate * 100).toFixed(2)}% floor`}
+                </div>
+              </div>
+            )}
             <Stat label="BTC mark" value={s ? num(s.markPrice, 0) : '—'} sub="from the last closed 1h candle" />
           </CardContent>
         </Card>
@@ -182,23 +221,24 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <ul className="divide-y divide-border">
-            {(journal.data ?? []).map((r, i, all) => {
-              const sev = severity(r);
-              const day = new Date(r.at).toDateString();
+            {toFeed(journal.data ?? []).map((item, i, all) => {
+              const sev = item.sev;
+              const r = item.rows[0]!;
+              const day = new Date(item.at).toDateString();
               // Times alone are ambiguous once the list spans midnight.
               const newDay = i === 0 || new Date(all[i - 1]!.at).toDateString() !== day;
               return (
-                <li key={r.id}>
+                <li key={item.key}>
                   {newDay && (
                     <div className="legend pt-3 pb-1">
-                      {new Date(r.at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                      {new Date(item.at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                     </div>
                   )}
                   <button
                     className="flex w-full items-baseline gap-3 py-2 text-left hover:bg-border/20 focus-visible:outline-2 focus-visible:outline-offset-2"
                     style={{ outlineColor: 'var(--series-1)' }}
-                    onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                    aria-expanded={expandedId === r.id}
+                    onClick={() => setExpandedId(expandedId === item.key ? null : item.key)}
+                    aria-expanded={expandedId === item.key}
                   >
                     <span
                       className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
@@ -213,18 +253,18 @@ export default function DashboardPage() {
                       aria-hidden
                     />
                     <span className="readout w-14 shrink-0 text-xs text-muted-foreground">
-                      {new Date(r.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(item.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                     </span>
                     <span
                       className={`flex-1 text-sm ${sev === 'routine' ? 'text-secondary-foreground' : 'font-medium'}`}
                     >
-                      {summarise(r)}
+                      {item.text}
                     </span>
-                    <span className="text-xs text-muted-foreground">{expandedId === r.id ? '▾' : '▸'}</span>
+                    <span className="text-xs text-muted-foreground">{expandedId === item.key ? '▾' : '▸'}</span>
                   </button>
-                  {expandedId === r.id && (
+                  {expandedId === item.key && (
                     <pre className="readout mb-2 overflow-x-auto rounded-md border border-border bg-background p-3 text-xs leading-relaxed text-secondary-foreground">
-                      {JSON.stringify(r.payload, null, 2)}
+                      {JSON.stringify(item.rows.length === 1 ? r.payload : item.rows.map((x) => x.payload), null, 2)}
                     </pre>
                   )}
                 </li>
