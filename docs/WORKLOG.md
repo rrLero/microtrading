@@ -7,6 +7,40 @@ SPECIFICATION.md — scaffold, ingestion/backfill 2019→now, §7 tooling,
 backtester, three pre-registered strategy families evaluated, risk engine,
 paper broker, trading loop, dashboard, watchdogs, ntfy alerts.)
 
+## 2026-08-12 — one fill model, four call sites (§6.2 single-sourced)
+
+Day-5 soak check clean: 57 decision+equity pairs over 48h, no risk/error
+entries, flat, both crons firing unattended (19 spread samples, probe at 13:37).
+Price is 2.50% below the 40-bar trigger (65,400, set 08-09 20:00 UTC and pinned
+there for ~a week by the 65.3k cluster behind it), so no strategy fill is near.
+
+- **Refactor** (`packages/core/src/fill-model.ts`, commit f48e5e0): the §6.2
+  taker formula was copy-pasted in four places — backtest engine entry + exit,
+  PaperBrokerService buy + sell, and the calibration probe's paper side. All
+  four agreed numerically, so nothing looked wrong. The probe's copy is the
+  dangerous one: §6.3 compares the paper model to the venue, so a §6.2 change in
+  PaperBrokerService would have left the probe validating the retired formula
+  and the report silently measuring nothing. Now one `modelFill()` in core, all
+  four routed through it. Pre-existing backtest tests pass unmodified (the
+  point); new `test/fill-model.test.ts` pins the arithmetic. Verified live —
+  probe #290 through the new path reports the same modeled 0.3000+2.6008 as its
+  pre-refactor twins at the same size.
+- **§6.2 gap, latent, not fixed**: the spec says slippage = max(half-spread,
+  0.03%); the implementation uses the flat 0.03% and never reads a book. Every
+  Kraken sample so far is far under the floor (median 0.0012%, max 0.0074%,
+  0/20 exceedances), so the flat rate is currently the stricter of the two — but
+  in a spread blowout the model would under-charge exactly when it matters. The
+  sampler now collects what is needed to close this; `fill-model.ts` names the
+  upgrade path.
+- **Open decision for the human** (§6.3 interpretation, not an agent call):
+  (a) the spec says "identical signals", not "identical *strategy* signals" — if
+  probe pairs count, the gate becomes evaluable ~08-25, inside day 28; waiting
+  on strategy fills likely does not, since the first fill must land by ~08-21 and
+  would yield n≈2. (b) total deviation is −82.8% and will never pass, dominated
+  by the −80.8% fee gap between Bybit demo's tier and the hardcoded Kraken tier
+  — a category difference, not a model error. The gate needs to be stated over
+  slippage + mechanics, with fees checked against Kraken's published tier.
+
 ## 2026-08-11 — §6.3 mirror was recording nothing usable (BUG) + daily probe
 
 Day-4 soak check was clean (24/24 ticks, no risk/error entries, flat since the
