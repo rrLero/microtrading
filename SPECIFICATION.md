@@ -38,7 +38,18 @@ its resolution in this version.
 ### 2.1 Market & venue
 
 - **Crypto spot.** 24/7 markets, native micro positions, free data.
-- **Data venue: Kraken** (deepest free 1h history for BTC/USDC; ingestion only).
+- **Data venue: Bybit** *(changed 2026-08-12 — see §7.5 D3)*, i.e. the same
+  venue we execute on. Two reasons, in order of weight:
+  1. **Basis correctness.** Backtesting on Kraken's prints while filling on
+     Bybit's book means the evaluated series is not the traded series. Same
+     venue for both removes that error.
+  2. **Reachability.** Kraken's OHLC endpoint returns ~720 bars regardless of
+     `since`, so its deep history is only available as manually downloaded
+     OHLCVT archives — unworkable for a multi-pair universe. Bybit serves years
+     of 1h candles through the API.
+  Cost, recorded honestly: BTC history shortens from 2020-01 to 2021-12. The
+  window still contains the whole 2022 bear market, which is what §7.2's
+  regime requirement actually needs.
 - **Execution venue: Bybit EU** *(changed 2026-08-12 — see §7.5 D2)*. Bybit EU
   GmbH holds MiCAR CASP authorisation from Austria's FMA (28 May 2025, ESMA
   register), passporting to all 29 EEA states including Poland, and lists
@@ -65,13 +76,40 @@ its resolution in this version.
   Coinbase sandbox is static mocks — unusable. **Kraken remains eliminated as an
   execution venue on cost**, not on regulatory grounds — its licensing is fine.
 
-### 2.2 Instrument: **BTC/USDC only in V1** *(changed in v0.3 — resolves R6, R11)*
+### 2.2 Instrument *(universe widened 2026-08-12 — see §7.5 D3)*
 
-- **One pair, not two.** BTC and ETH correlate 0.7–0.9; two positions of 1% risk
-  behave like one ~2% position exactly when it hurts (correlations spike in
-  stress). Rather than build correlation-aware risk bucketing in V1, we remove
-  the problem: BTC only. ETH returns in V2 together with a correlation-bucketed
-  risk model (§5.4).
+**Evaluation universe and trading universe are deliberately different things.**
+
+- **Evaluation: a pre-registered multi-pair universe.** A strategy is judged on
+  its performance *pooled* across every pair in the universe, with one parameter
+  set applied uniformly. Rationale: the same two parameters working across ten
+  assets cannot be curve-fit to any one of them, so cross-sectional consistency
+  is stronger evidence than a single-asset result — independently of the fact
+  that it also multiplies the trade count.
+- **Universe selection rule (EX-ANTE, fixed before any backtest).** Every spot
+  pair on the execution venue satisfying ALL of:
+  1. quoted in USDC, and neither leg a stablecoin or FX token;
+  2. ≥200,000 USDC 24h quote volume at selection time;
+  3. ≥3 years of 1h history available from the data venue.
+
+  The rule is decidable from exchange listings alone, with no backtest. **Pooled
+  is the verdict; per-pair figures are a breakdown, never an alternative result
+  to choose between.** Selecting the asset that happens to work is asset-mining,
+  the same multiple-testing failure §7 exists to prevent.
+- **Correlation is reported, not assumed away.** Crypto majors correlate 0.7–0.9,
+  so pooled trades are far from independent. Every report prints **effective N
+  alongside raw N**; a raw trade count across correlated assets overstates its
+  own evidence exactly the way an undeflated Sharpe does.
+- **Trading: still ONE open position at a time (§5.3).** The original BTC-only
+  reasoning stands unchanged for live and paper trading: ten simultaneous long
+  crypto positions at "1% risk each" is one ~8% risk when correlations spike.
+  Concurrent multi-pair positions require the correlation bucketing of §5.4 and
+  are out of V1 scope. Widening the universe widens what we *measure*, not what
+  we hold.
+- **Per-pair cost validation is a precondition.** The 0.03% slippage floor was
+  validated against BTC's ~0.0001% half-spread. Thinner alts may exceed it,
+  flipping the model from pessimistic to optimistic — the dangerous direction.
+  No non-BTC result is trusted until `ops/spread-sample` covers that pair.
 - **Quote in USDC, not USDT and not EUR.** Reasoning chain:
   - USDT carries documented depeg/counterparty risk (stablecoin devaluation
     literature) — holding "cash" in USDT is a carry trade on Tether.
@@ -382,6 +420,52 @@ appended, never rewritten.
   3.91 USDC, so it is corrected in place rather than reset; the soak clock for
   *strategy* evidence restarts at the corrected basis, while the Track A
   infrastructure soak continues uninterrupted from 2026-08-07.
+
+#### D3 — 2026-08-12 — multi-pair evaluation universe; data venue Kraken → Bybit
+
+**This is the FINAL amendment before the holdout is opened.** Recorded as a
+commitment, not an aspiration: no D4. If the pooled result disappoints, the
+answer is §7.4's project stopping rule, not another widening.
+
+- **Original wording (§2.2):** "BTC/USDC only in V1 … One pair, not two."
+- **Deviation:** evaluation runs pooled across a pre-registered universe of ≤10
+  USDC spot pairs selected by the ex-ante rule in §2.2; the data venue moves
+  from Kraken to Bybit. Trading remains one open position at a time.
+- **Reason, in the order the reasons actually weigh:**
+  1. **Cross-sectional robustness.** One parameter set holding across ten assets
+     cannot be curve-fit to any one of them. This argument is independent of any
+     result and would have been equally valid before Phase 1.
+  2. **Evidence volume.** ~40 pair-years replaces 5.6, lifting raw OOS trades
+     from 93 to an estimated several hundred — past §7.4's floor even after
+     correlation shrinks the effective count hard.
+  3. **Basis correctness.** Evaluating on Kraken prints while filling on Bybit's
+     book meant the tested series was not the traded series.
+  4. **Reachability.** Kraken's OHLC API caps at ~720 bars, so its deep history
+     is manual quarterly archives (~25 downloads for 2020→now, verified against
+     the Q1-2026 archive on 2026-08-12). Not workable for ten pairs.
+- **Timing — the pattern matters more than this entry.** This is the third
+  amendment in one day and the second decided *after* a disappointing result
+  (D2 followed donchian failing at 0.80%; D3 follows DSR stalling at 0.70 on 93
+  trades). Individually each is defensible; the *sequence* — repeatedly widening
+  the search space following a setback — is what a project looks like when it is
+  talking itself into an answer. Two things contain it:
+  1. The universe rule is ex-ante and decidable from exchange listings with no
+     backtest, and pooled-is-the-verdict forbids picking the asset that worked.
+  2. The holdout is still sealed and now carries essentially all of this
+     project's remaining credibility. It is worth exactly one evaluation, and it
+     must not be opened until the spec has been frozen for a meaningful period.
+- **Trial accounting:** N UNCHANGED at 6 configurations. Same grid, same
+  parameters, same families; the cross-section widened and the price source
+  changed. No new configuration was introduced. The new selection opportunity is
+  over *assets*, and pooling is what closes it.
+- **Cost, recorded:** BTC history shortens 2020-01 → 2021-12 (the 2020 crash and
+  part of the 2021 bull run are lost; the 2022 bear market, which §7.2 actually
+  requires, is retained). All Kraken-based results are superseded — including the
+  0.10% figures from earlier today (PF 1.75, DSR 0.70, 93 trades), which were
+  computed on a price series we no longer trade against.
+- **Precondition before any non-BTC number is trusted:** `ops/spread-sample`
+  must cover each pair (§2.2). The 0.03% slippage floor is verified conservative
+  for BTC only.
 
 ---
 
