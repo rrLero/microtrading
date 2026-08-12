@@ -167,7 +167,12 @@ export class ExperimentService {
   ): { metrics: Metrics; windows: number } {
     const p = this.evaluateParts(family, params, devCandles, costsOverride);
     return {
-      metrics: computeMetricsFromParts(p.returns, p.trades, nTrialsForDsr, p.candleCount),
+      metrics: computeMetricsFromParts(
+        p.returns.map((r) => r.r),
+        p.trades,
+        nTrialsForDsr,
+        p.candleCount,
+      ),
       windows: p.windows,
     };
   }
@@ -185,13 +190,16 @@ export class ExperimentService {
     params: Record<string, number>,
     devCandles: readonly Candle[],
     costsOverride?: CostParams,
-  ): { returns: number[]; trades: Trade[]; candleCount: number; windows: number } {
+  ): { returns: { ts: number; r: number }[]; trades: Trade[]; candleCount: number; windows: number } {
     const first = devCandles[0];
     const last = devCandles[devCandles.length - 1];
     if (!first || !last) throw new Error('No development candles.');
     const windows = buildWalkForwardWindows(first.timestamp, last.timestamp + 3_600_000);
 
-    const pooledReturns: number[] = [];
+    // Timestamped: a multi-pair run must align returns across pairs by date to
+    // measure how correlated the STRATEGY's returns are — which is the quantity
+    // that governs effective sample size, not the assets' raw correlation.
+    const pooledReturns: { ts: number; r: number }[] = [];
     const pooledTrades: Trade[] = [];
     let candleCount = 0;
 
@@ -209,7 +217,7 @@ export class ExperimentService {
       let prev: number | null = null;
       for (const p of result.equityCurve) {
         if (p.ts < w.testFrom) continue;
-        if (prev !== null && prev > 0) pooledReturns.push(p.equity / prev - 1);
+        if (prev !== null && prev > 0) pooledReturns.push({ ts: p.ts, r: p.equity / prev - 1 });
         prev = p.equity;
         candleCount++;
       }

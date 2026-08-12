@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { DbService } from '../db/db.service.js';
 import { journal, paperAccount } from '../db/schema.js';
 import { btFor, type StrategyFamily } from '../experiments/experiment.service.js';
+import { universeSymbols } from '../experiments/universe.js';
 import { IngestionService } from '../market-data/ingestion.service.js';
 import { BybitDemoMirrorService } from './bybit-demo-mirror.service.js';
 
@@ -71,38 +72,61 @@ export class CalibrationProbeService {
    */
   async sampleSpread(): Promise<void> {
     try {
-      const symbol = this.config.get<string>('SYMBOL', 'BTC/USDC');
       const family = this.config.get<StrategyFamily>('STRATEGY_FAMILY', 'donchian-breakout');
       const modeledSlippageRate = btFor(family).costs.slippageRate;
 
+      // §2.2 makes per-pair spread evidence a precondition for trusting any
+      // non-BTC result: the 0.03% floor is verified conservative for BTC only,
+      // and a thinner alt can exceed it — flipping the model from pessimistic
+      // to optimistic on exactly the pairs whose numbers look weakest.
+      const symbols = universeSymbols();
       const ex = this.ingestion.createExchange(this.config.get<string>('EXECUTION_VENUE', 'bybit'));
-      const t = await ex.fetchTicker(symbol);
-      const bid = t.bid ?? null;
-      const ask = t.ask ?? null;
-      if (!bid || !ask || !(ask > bid)) {
-        this.log.warn(`No usable bid/ask for ${symbol} on ${ex.id} — spread sample skipped.`);
-        return;
-      }
-      const mid = (bid + ask) / 2;
-      const halfSpreadRate = (ask - bid) / 2 / mid;
 
-      await this.dbs.db.insert(journal).values({
-        kind: 'ops',
-        payload: {
-          event: 'spread-sample',
-          venue: ex.id,
-          symbol,
-          bid,
-          ask,
-          mid,
-          halfSpreadRate,
-          modeledSlippageRate,
-          // §6.2's rule: the model should charge whichever is worse.
-          specSlippageRate: Math.max(halfSpreadRate, modeledSlippageRate),
-        },
-      });
+      // One request for the whole universe rather than ten.
+      const tickers = await ex.fetchTickers(symbols);
+
+      const rows: { symbol: string; halfSpreadRate: number; bid: number; ask: number; mid: number }[] = [];
+      const skipped: string[] = [];
+      for (const symbol of symbols) {
+        const t = tickers[symbol];
+        const bid = t?.bid ?? null;
+        const ask = t?.ask ?? null;
+        if (!bid || !ask || !(ask > bid)) {
+          skipped.push(symbol);
+          continue;
+        }
+        const mid = (bid + ask) / 2;
+        rows.push({ symbol, bid, ask, mid, halfSpreadRate: (ask - bid) / 2 / mid });
+      }
+      if (skipped.length) this.log.warn(`No usable bid/ask on ${ex.id} for: ${skipped.join(', ')}`);
+      if (rows.length === 0) return;
+
+      await this.dbs.db.insert(journal).values(
+        rows.map((r) => ({
+          kind: 'ops',
+          payload: {
+            event: 'spread-sample',
+            venue: ex.id,
+            symbol: r.symbol,
+            bid: r.bid,
+            ask: r.ask,
+            mid: r.mid,
+            halfSpreadRate: r.halfSpreadRate,
+            modeledSlippageRate,
+            // §6.2's rule: the model should charge whichever is worse.
+            specSlippageRate: Math.max(r.halfSpreadRate, modeledSlippageRate),
+            // Flagged at write time so a breach is greppable, not just derivable.
+            exceedsModel: r.halfSpreadRate > modeledSlippageRate,
+          },
+        })),
+      );
+
+      const worst = rows.reduce((a, b) => (b.halfSpreadRate > a.halfSpreadRate ? b : a));
+      const breaches = rows.filter((r) => r.halfSpreadRate > modeledSlippageRate);
       this.log.log(
-        `Spread sample ${ex.id} ${symbol}: half-spread ${(halfSpreadRate * 100).toFixed(4)}% vs modeled ${(modeledSlippageRate * 100).toFixed(4)}%`,
+        `Spread sample ${ex.id}: ${rows.length} pairs, worst ${worst.symbol} ${(worst.halfSpreadRate * 100).toFixed(4)}% ` +
+          `vs modeled ${(modeledSlippageRate * 100).toFixed(4)}%` +
+          (breaches.length ? ` — ${breaches.length} EXCEED the model: ${breaches.map((b) => b.symbol).join(', ')}` : ''),
       );
     } catch (err) {
       this.log.warn(`Spread sample failed: ${err instanceof Error ? err.message : String(err)}`);

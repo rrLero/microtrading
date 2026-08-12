@@ -8,6 +8,7 @@ COPY apps/agent/package.json apps/agent/
 RUN pnpm install --frozen-lockfile
 COPY packages ./packages
 COPY apps/agent ./apps/agent
+COPY experiments ./experiments
 RUN pnpm build
 
 FROM node:22-alpine
@@ -20,6 +21,9 @@ COPY --from=build /repo/apps/agent/package.json apps/agent/
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=build /repo/packages/core/dist packages/core/dist
 COPY --from=build /repo/apps/agent/dist apps/agent/dist
+# The pre-registered universe (SPEC §2.2) is read at runtime by the spread
+# sampler, so it has to ship with the image — not just exist in the repo.
+COPY --from=build /repo/experiments experiments
 WORKDIR /repo/apps/agent
 # .env is NOT baked in — pass config via environment (compose env_file)
 CMD ["node", "dist/main.js"]

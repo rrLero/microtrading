@@ -1,9 +1,9 @@
 import 'reflect-metadata';
-import { readFileSync } from 'node:fs';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module.js';
 import { IngestionService } from '../market-data/ingestion.service.js';
 import { CandleRepository } from '../market-data/candle-repository.js';
+import { loadUniverse } from '../experiments/universe.js';
 
 /**
  * Backfill the pre-registered evaluation universe:  pnpm backfill-universe [--purge]
@@ -19,14 +19,9 @@ import { CandleRepository } from '../market-data/candle-repository.js';
  * producing a series that no venue ever printed. Back up before purging —
  * see data-archive/.
  */
-const UNIVERSE = new URL('../../../../experiments/universe.json', import.meta.url);
-
 async function main(): Promise<void> {
   const purge = process.argv.includes('--purge');
-  const uni = JSON.parse(readFileSync(UNIVERSE, 'utf8')) as {
-    dataVenue: string;
-    pairs: { symbol: string; historyFrom: string }[];
-  };
+  const uni = loadUniverse();
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['warn', 'error'] });
   try {
