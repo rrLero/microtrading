@@ -7,6 +7,52 @@ SPECIFICATION.md — scaffold, ingestion/backfill 2019→now, §7 tooling,
 backtester, three pre-registered strategy families evaluated, risk engine,
 paper broker, trading loop, dashboard, watchdogs, ntfy alerts.)
 
+## 2026-08-12 (late) — universe widened, power measured, report drafted
+
+Continuation of the same day. Everything below is post-D2.
+
+- **D3 (FINAL amendment):** evaluation widened to a pre-registered 10-pair USDC
+  universe, and the DATA venue moved to Bybit as well. Kraken's OHLC API caps at
+  ~720 bars (its deep history is manual quarterly archives — verified against the
+  user's Q1-2026 download, which turned out to be one quarter, not full history),
+  and evaluating on Kraken while filling on Bybit was injecting a basis error.
+  Measured that error before switching: median 0.019%, p90 0.056%, max 0.201%
+  over 2,160 matched Q1-2026 bars. Backfilled 354,080 1h candles across 10 pairs,
+  up from 57,784. Kraken BTC candles backed up to `data-archive/` before purge.
+- **Pooled result at 0.10%:** 6/6 configs clear the §7.4 kill line; best {55,20}
+  PF 2.37 on 215 raw trades. Per-pair dispersion is large and coherent — the
+  edge lives in the deep majors (BTC/XRP/SOL/ETH/ADA) and dies in the thin recent
+  alts (ARB negative in all six configs).
+- **Effective N, corrected twice.** First implementation correlated the ASSETS'
+  daily returns (0.588) when what governs effective sample size is the
+  correlation of STRATEGY returns — the strategy is flat most of the time, so
+  pairs are rarely in position together. Measured properly it is 0.27-0.39,
+  giving 2.2-2.9 effective assets of 10 by the Kish design effect. Researched
+  Kish vs the spectral measure and settled it on the definitions: effective
+  SAMPLE SIZE is about estimator precision (Kish); the spectral measure counts
+  effective DIMENSIONS and belongs to the DSR's trial count, not here.
+- **DSR now deflates against 34, not 6** — every distinct configuration tried
+  across all three families. donchian was not selected from its own grid in
+  isolation. Best config's DSR falls 0.96 → 0.82.
+- **Power measured** (`minimumDetectableSharpe`, new in core): the minimum
+  annualised Sharpe this sample could certify at 95% with N=34 is **1.04**; the
+  best config's observed Sharpe is **0.85**. So the null is BOUNDED — it rules
+  out edges materially above 1.04 and is silent about smaller ones. Per the
+  reporting literature this is the single most important section of a null
+  report, and it was missing until now.
+- **Per-pair spread sampling** armed (one `fetchTickers` call, all 10 pairs
+  hourly). All under the 0.03% floor; worst ADA/USDC at 0.0270% — 90% of it, and
+  270x BTC's. Breaches flagged at write time as `exceedsModel`.
+- **Dashboard:** folded spread sweeps into one feed row (per-pair sampling would
+  otherwise have written 240 rows/day and buried the hourly decision), and added
+  a meter for the widest spread as a share of the modelled floor.
+- **`docs/REPORT.md` drafted**, structured to Arnott, Harvey & Markowitz (2019),
+  the recognised backtesting protocol, with the full 34-config trial inventory
+  including both families that lost money. Holdout, soak result and conclusion
+  left as explicit [PENDING] placeholders.
+- **Spec is now FROZEN.** No D4. Remaining work is the soak to 2026-09-04, the
+  drill ~09-09, one holdout evaluation, and finishing the report.
+
 ## 2026-08-12 (evening) — execution venue → Bybit EU; 6/6 configs now clear
 
 Follow-on from the 0.80% finding. The diagnosis was that this is a venue problem,
