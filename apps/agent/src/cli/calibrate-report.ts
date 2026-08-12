@@ -19,18 +19,24 @@ import { journal } from '../db/schema.js';
  * any paper result. Coverage (skipped/errored mirrors) is reported so the
  * comparison cannot silently overstate itself.
  *
- * Two things the headline number alone will lie to you about:
+ * Three things the headline number alone will lie to you about:
  *
- * 1. SLIPPAGE vs FEE. The model charges the Kraken taker tier (0.26%); Bybit
- *    demo charges Bybit's (~0.1%). That gap is a venue difference, not a fill-
- *    model error, and on a 1000 USDC trade the fee term is ~8× the slippage
- *    term — so it swamps the aggregate and can fail the gate for the wrong
- *    reason. Both components are therefore broken out; slippage is the part
- *    §6.2's model actually predicts.
- * 2. PROBES vs STRATEGY FILLS. §6.3 asks for identical *signals* through both
- *    paths. Calibration probes are not signals, so they are counted as a
- *    separate population — supporting evidence with a much larger n, never
- *    silently blended into the gate number.
+ * 1. COST BASIS DRIFT. A pair's modeled side is only meaningful against the cost
+ *    model that produced it. The basis moved twice on 2026-08-12 (0.26% → 0.80%
+ *    Kraken → 0.10% Bybit EU), and pooling pairs across those bases produces an
+ *    aggregate that describes no model at all. Each pair's implied taker rate is
+ *    therefore recovered from its own payload, and pairs from a superseded basis
+ *    are excluded from every aggregate rather than silently averaged in.
+ * 2. SLIPPAGE vs FEE. On a 1000 USDC trade the fee term is ~8× the slippage
+ *    term, so a fee discrepancy swamps any aggregate and fails the gate for the
+ *    wrong reason. They are different KINDS of quantity: fees are explicit costs
+ *    fixed by a published schedule, slippage is an implicit cost that must be
+ *    measured. Standard TCA practice separates them (Perold 1988; Hasbrouck
+ *    Ch.8), and so does the verdict below.
+ * 3. WHAT DEMO CAN ACTUALLY PROVE. Bybit demo fills at last price with zero
+ *    spread, and charges ~0.05% where Bybit EU live publishes 0.10%. It can
+ *    therefore validate neither slippage nor fees — only order mechanics. The
+ *    verdict states each axis against the instrument that can actually test it.
  */
 
 interface DemoFillPayload {
@@ -59,7 +65,18 @@ interface Pair {
   modeledFee: number;
   actualSlip: number;
   actualFee: number;
+  /** Recovered from the pair's own payload, so a basis change cannot go unnoticed. */
+  impliedTakerRate: number;
+  impliedDemoRate: number;
 }
+
+/**
+ * Bybit EU non-VIP spot taker, verified 2026-08-12 (§2.1). The model is supposed
+ * to charge exactly this; the fee axis is that equality check, not a statistic.
+ */
+const PUBLISHED_TAKER = 0.001;
+/** A pair belongs to the current basis if its implied rate is within this much of it. */
+const BASIS_TOLERANCE = 0.2;
 
 const rel = (actual: number, modeled: number): number => (modeled > 0 ? (actual - modeled) / modeled : 0);
 
@@ -91,7 +108,7 @@ function report(title: string, pairs: Pair[], incomplete: number): number | null
   const devs = pairs.map((p) => rel(p.actualSlip + p.actualFee, p.modeledSlip + p.modeledFee)).sort((a, b) => a - b);
 
   console.log(`\n  slippage:  modeled ${mSlip.toFixed(4)}  demo ${aSlip.toFixed(4)}  → ${(rel(aSlip, mSlip) * 100).toFixed(1)}%   <- what §6.2's model predicts`);
-  console.log(`  fee:       modeled ${mFee.toFixed(4)}  demo ${aFee.toFixed(4)}  → ${(rel(aFee, mFee) * 100).toFixed(1)}%   <- venue tier difference, not a model error`);
+  console.log(`  fee:       modeled ${mFee.toFixed(4)}  demo ${aFee.toFixed(4)}  → ${(rel(aFee, mFee) * 100).toFixed(1)}%   <- demo fee artifact; see verdict axis 1`);
   console.log(`  total:     modeled ${(mSlip + mFee).toFixed(4)}  demo ${(aSlip + aFee).toFixed(4)}  → ${(totalDev * 100).toFixed(1)}%`);
   console.log(`  median per-fill total deviation: ${((devs[Math.floor(devs.length / 2)] ?? 0) * 100).toFixed(1)}%`);
   return totalDev;
@@ -141,6 +158,8 @@ async function main(): Promise<void> {
         continue;
       }
       const qty = p.demoFilledQty;
+      const paperNotional = p.paper.fillPrice * qty;
+      const demoNotional = p.demoAvgPrice * qty;
       (isProbe ? probePairs : strategyPairs).push({
         at,
         side: p.side,
@@ -150,6 +169,8 @@ async function main(): Promise<void> {
         modeledFee: p.paper.fee,
         actualSlip: Math.abs(p.demoAvgPrice - p.refPrice) * qty,
         actualFee: p.demoFeeUsdc ?? 0,
+        impliedTakerRate: paperNotional > 0 ? p.paper.fee / paperNotional : 0,
+        impliedDemoRate: demoNotional > 0 ? (p.demoFeeUsdc ?? 0) / demoNotional : 0,
       });
     }
 
@@ -166,8 +187,26 @@ async function main(): Promise<void> {
       return;
     }
 
-    const gateDev = report('STRATEGY FILLS (the §6.3 gate population)', strategyPairs, incompleteStrategy);
-    report('CALIBRATION PROBES (supporting evidence, not signals)', probePairs, incompleteProbe);
+    // A pair computed under a retired cost model describes a model we no longer
+    // run. Partition, never blend — pooling these is what made the old aggregate
+    // meaningless once the basis moved twice in one day.
+    const onCurrentBasis = (p: Pair): boolean =>
+      Math.abs(p.impliedTakerRate - PUBLISHED_TAKER) / PUBLISHED_TAKER <= BASIS_TOLERANCE;
+    const staleStrategy = strategyPairs.filter((p) => !onCurrentBasis(p));
+    const staleProbe = probePairs.filter((p) => !onCurrentBasis(p));
+    const liveStrategy = strategyPairs.filter(onCurrentBasis);
+    const liveProbe = probePairs.filter(onCurrentBasis);
+
+    if (staleStrategy.length + staleProbe.length > 0) {
+      const rates = [...new Set([...staleStrategy, ...staleProbe].map((p) => (p.impliedTakerRate * 100).toFixed(3)))];
+      console.log(
+        `\n⚠ ${staleStrategy.length + staleProbe.length} pair(s) EXCLUDED — computed at a superseded cost basis ` +
+          `(implied taker ${rates.join('%, ')}%; current ${(PUBLISHED_TAKER * 100).toFixed(3)}%). See §7.5 D1/D2.`,
+      );
+    }
+
+    const gateDev = report('STRATEGY FILLS (the §6.3 gate population)', liveStrategy, incompleteStrategy);
+    report('CALIBRATION PROBES (supporting evidence, not signals)', liveProbe, incompleteProbe);
 
     if (spreadSamples.length > 0) {
       const rates = spreadSamples.map((s) => s.halfSpreadRate).sort((a, b) => a - b);
@@ -185,17 +224,50 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log('\n=== verdict ===');
+    // §6.3, decomposed. A single aggregate cannot pass or fail honestly, because
+    // its three components are measured by three different instruments and only
+    // one of them is a statistic at all.
+    console.log('\n=== verdict — §6.3 by component ===');
+
+    const modeledTaker = [...liveProbe, ...liveStrategy][0]?.impliedTakerRate ?? PUBLISHED_TAKER;
+    const feeOk = Math.abs(modeledTaker - PUBLISHED_TAKER) / PUBLISHED_TAKER <= 0.01;
+    console.log(`\n1. FEES (explicit — checked against the published schedule, not the venue)`);
+    console.log(`   modelled ${(modeledTaker * 100).toFixed(4)}%  vs  Bybit EU non-VIP published ${(PUBLISHED_TAKER * 100).toFixed(4)}%`);
+    console.log(`   ${feeOk ? 'PASS — the model charges the published rate.' : 'FAIL — model and published schedule disagree; fix one.'}`);
+    const demoRates = [...liveProbe, ...liveStrategy].map((p) => p.impliedDemoRate).filter((r) => r > 0);
+    if (demoRates.length) {
+      const avgDemo = demoRates.reduce((a, b) => a + b, 0) / demoRates.length;
+      console.log(`   (demo charged ~${(avgDemo * 100).toFixed(4)}% — a DEMO ARTIFACT, not evidence about live fees.`);
+      console.log(`    Fees are a published constant; they are verified by reading the schedule, not by trading.)`);
+    }
+
+    console.log(`\n2. SLIPPAGE (implicit — checked against the execution venue's book)`);
+    if (spreadSamples.length === 0) {
+      console.log('   NOT EVALUABLE — no spread samples yet.');
+    } else {
+      const rates = spreadSamples.map((s) => s.halfSpreadRate).sort((a, b) => a - b);
+      const p90 = rates[Math.min(rates.length - 1, Math.floor(0.9 * rates.length))]!;
+      const modeledSlip = spreadSamples[spreadSamples.length - 1]!.modeledSlippageRate;
+      const conservative = modeledSlip >= p90;
+      console.log(`   modelled ${(modeledSlip * 100).toFixed(4)}%  vs  observed p90 half-spread ${(p90 * 100).toFixed(4)}%  (n=${rates.length})`);
+      console.log(`   ${conservative ? 'PASS — the model is conservative at p90.' : 'FAIL — the model under-charges; paper results are optimistic.'}`);
+      if (rates.length < 100) console.log(`   ⚠ n=${rates.length} and no stress event sampled yet — treat as provisional.`);
+    }
+
+    console.log(`\n3. MECHANICS (what demo CAN prove — orders, fills, read-back, fee currency)`);
+    const mechanicsOk = mirrorErrors === 0 && liveProbe.length + liveStrategy.length > 0;
+    console.log(`   ${liveProbe.length + liveStrategy.length} complete pair(s) at the current basis, ${mirrorErrors} mirror error(s)`);
+    console.log(`   ${mechanicsOk ? 'PASS — orders route, fill, and read back.' : 'NOT EVALUABLE — no complete pairs at this basis yet.'}`);
+
+    console.log(`\n4. FILL-MODEL vs VENUE (the original §6.3 aggregate)`);
     if (gateDev === null) {
-      console.log('§6.3 gate: NOT YET EVALUABLE — no strategy fills have been mirrored.');
-      console.log('Probe pairs measure the same fill model at the same size, but §6.3 asks for');
-      console.log('identical signals through both paths; they inform the model, they do not close the gate.');
+      console.log('   NOT EVALUABLE — no strategy fills mirrored at the current basis.');
+      console.log('   Note: Bybit demo has zero spread, so this axis cannot be closed there at all.');
+      console.log('   Axes 1-3 are what actually validate the cost model; this one waits for a venue with a real book.');
     } else {
       const pass = Math.abs(gateDev) <= 0.3;
-      console.log(`§6.3 gate (|aggregate total| ≤ 30%): ${pass ? 'PASS' : 'FAIL — fix the PaperAdapter fill model'}`);
-      if (!pass) console.log('Check the slippage line before touching the model — a fee-tier gap is a venue difference, not a model error.');
+      console.log(`   |aggregate total| ≤ 30%: ${pass ? 'PASS' : 'FAIL — fix the PaperAdapter fill model'}`);
     }
-    console.log('Reminder: the gate needs ≥2 weeks of parallel fills before it means anything.');
   } finally {
     await app.close();
   }
