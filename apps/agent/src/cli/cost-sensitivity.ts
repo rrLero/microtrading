@@ -3,7 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from '../app.module.js';
 import { CandleRepository } from '../market-data/candle-repository.js';
-import { ExperimentService, type StrategyFamily } from '../experiments/experiment.service.js';
+import { ExperimentService, btFor, type StrategyFamily } from '../experiments/experiment.service.js';
 
 /**
  * Cost-sensitivity sweep:  pnpm cost-sensitivity -- <family> [deployedParamsJson]
@@ -23,15 +23,20 @@ import { ExperimentService, type StrategyFamily } from '../experiments/experimen
 
 /** §7.4 kills a config below PF 1.1; PF 1.0 is where gross edge is fully eaten. */
 const KILL_PF = 1.1;
-/** §6.2 pessimistic-mode go/no-go tier: Kraken standard-crypto spot Level 1. */
-const DECISION_RATE = 0.008;
+/**
+ * The decision tier is whatever §6.2 currently models — read it, never restate
+ * it here. A second copy of this number is a second thing to forget to update
+ * when the venue moves, which is exactly how the 0.26% error survived Phase 0.
+ */
+const decisionRate = (family: StrategyFamily): number => btFor(family).costs.takerFeeRate;
 /** §7.4 refuses a go/no-go judgment below this much OOS + paper evidence. */
 const MIN_TRADES = 100;
 
 /** Key order in the pre-registered grid is not guaranteed to match the CLI arg. */
 const canon = (o: Record<string, number>): string =>
   JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
-const RATES = [0.0026, 0.003, 0.0035, 0.0038, 0.005, 0.006, 0.008, 0.01, 0.012];
+/** Spans both venues: 0.10% is Bybit EU non-VIP, 0.80% is Kraken L1. */
+const RATES = [0.001, 0.0015, 0.002, 0.0026, 0.0035, 0.0038, 0.005, 0.006, 0.008, 0.01];
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2).filter((a) => a !== '--');
@@ -96,12 +101,13 @@ async function main(): Promise<void> {
     report('best-in-grid', bestPfAt);
     if (deployedPfAt.size) report(`deployed ${JSON.stringify(deployed)}`, deployedPfAt);
 
-    console.log('\n--- Kraken standard-crypto spot ladder (verified 2026-08-12) ---');
-    console.log('  L1 >$0: 0.80%   L2 >$2.5k: 0.60%   L3 >$10k: 0.38%   L4 >$25k: 0.35%   L5 >$50k: 0.30%');
-    console.log('  §6.2 pessimistic-mode go/no-go is decided at L1 = 0.80%.');
+    console.log('\n--- venue reference (verified 2026-08-12) ---');
+    console.log('  Bybit EU non-VIP spot: 0.10% taker  <- EXECUTION venue (§2.1)');
+    console.log('  Kraken standard-crypto: L1 0.80% / L2 0.60% / L3 0.38% / L4 0.35% / L5 0.30%  <- DATA venue only');
 
-    // The whole grid at the decision tier — so "every config fails" is evidence, not inference.
-    console.log(`\n--- EVERY pre-registered config at the decision tier (${(DECISION_RATE * 100).toFixed(2)}% taker) ---`);
+    // The whole grid at the decision tier — so the verdict is evidence, not inference.
+    const DECISION_RATE = decisionRate(family);
+    console.log(`\n--- EVERY pre-registered config at the modelled tier (${(DECISION_RATE * 100).toFixed(2)}% taker) ---`);
     console.log('config                                   | PF    | trades | net%   | verdict');
     let survivors = 0;
     let maxTrades = 0;

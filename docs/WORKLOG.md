@@ -7,6 +7,54 @@ SPECIFICATION.md — scaffold, ingestion/backfill 2019→now, §7 tooling,
 backtester, three pre-registered strategy families evaluated, risk engine,
 paper broker, trading loop, dashboard, watchdogs, ntfy alerts.)
 
+## 2026-08-12 (evening) — execution venue → Bybit EU; 6/6 configs now clear
+
+Follow-on from the 0.80% finding. The diagnosis was that this is a venue problem,
+not a strategy problem: fees ran ~600x the observed half-spread, so Kraken's fee
+schedule decided every result.
+
+- **Regulatory check came first.** §2.1 eliminated Binance on MiCA licensing, not
+  cost, so venue choice here is regulatory-first. Bybit EU GmbH holds Austrian
+  FMA CASP authorisation (28 May 2025), is in the ESMA register, passports to
+  Poland, lists BTC/USDC, and charges 0.10% maker/taker non-VIP. It clears the
+  same bar Kraken was chosen for. OKX Europe (MFSA, Jan 2025, 0.10%) is the
+  equivalent alternative; Bybit won on already being integrated.
+- **§2.1 amended** (commit a2eb976): Kraken stays the DATA venue, Bybit EU
+  becomes the EXECUTION venue. §6.2 charges 0.10%. The venue rule is written
+  ex-ante and binding: cheapest MiCA-authorised venue listing BTC/USDC with a
+  drivable API — decidable from published schedules and the ESMA register with no
+  backtest, and binding against re-shopping if results later disappoint.
+- **§7.5 D2 records the uncomfortable part:** unlike D1, this change was decided
+  AFTER seeing donchian fail at 0.80%. The ex-ante rule, the no-re-shop
+  commitment, and the sealed holdout contain that risk; none removes it.
+- **Result at 0.10% — 6/6 configs clear the §7.4 kill line** (was 0/6 at 0.80%):
+
+  | config | PF | trades | net% | maxDD% | Sharpe | DSR |
+  |---|---|---|---|---|---|---|
+  | **{40,10} deployed** | **1.75** | 93 | 10.4 | 3.4 | 0.91 | 0.70 |
+  | {40,20} | 1.58 | 80 | 11.5 | 5.1 | 0.90 | 0.69 |
+  | {55,10} | 1.58 | 83 | 7.2 | 3.3 | 0.69 | 0.53 |
+  | {20,10} | 1.41 | 135 | 8.2 | 4.0 | 0.64 | 0.50 |
+  | {55,20} | 1.39 | 72 | 8.7 | 4.2 | 0.74 | 0.57 |
+  | {20,20} | 1.20 | 116 | 7.7 | 6.0 | 0.55 | 0.42 |
+
+  Fees are now 8-9% of gross. **This is not a pass.** DSR tops out at 0.70 — a
+  ~30% chance the best config's Sharpe is luck given the 6-trial budget — and
+  §7.4's gate wants deflated Sharpe >0 at 95% confidence, on the holdout. Only
+  {20,10} and {20,20} clear the 100-trade evidence floor, and they are the two
+  weakest. The deployed {40,10} still has 93 trades.
+- **Trial ledger fixed:** trials were keyed by params alone, so a corrected
+  re-run would have skipped all six and reported retired numbers. `logTrial` now
+  records the cost basis and `trialExists` matches on it. Pre-2026-08-12 rows
+  carry no `costs` key and are superseded. N for §7.1 is still 6 configurations;
+  12 trial ROWS now exist across two bases.
+- **Deployed and verified:** container on `takerFeeRate: 0.001`, loop armed,
+  flat, 9,996.09 USDC. Spread sampler repointed at Bybit — first live sample
+  0.0001% half-spread vs 0.0300% modelled, so the floor still dominates.
+- **Holdout still SEALED.** Nothing has earned it, and a dev-window pass reached
+  via a venue change made after a failure is exactly the result that should not
+  be trusted without it.
+
 ## 2026-08-12 (afternoon) — the taker fee was wrong by 3x; no config survives
 
 Chased the `// SPEC §7 open item: verify actual tier` comment that had been

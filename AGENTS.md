@@ -66,10 +66,15 @@ Update it after every significant operational or engineering change.
 - Agent runs in Docker on this Mac (`docker-compose.local.yml`, same compose
   project + `pgdata` volume as dev compose → data is shared with host tooling
   on port 55432). Dashboard runs separately via `pnpm --filter @microtrading/dashboard dev`.
-- Phase 3 soak in progress: strategy `donchian-breakout(40,10)` on BTC/USDC 4h
-  (NOTE 2026-08-12: no config survives verified costs — see WORKLOG; awaiting
-  human decision on §7.4 stopping rule),
+- Phase 3 soak in progress: strategy `donchian-breakout(40,10)` on BTC/USDC 4h,
   paper account started 2026-08-07 with 10,000 USDC.
+- COSTS/VENUE CHANGED 2026-08-12 (SPEC §7.5 D1+D2): taker fee was an unverified
+  0.26%; Kraken's real Level 1 is 0.80% and NO config survives it. Execution
+  venue moved to Bybit EU (0.10%, MiCA-authorised via Austria); Kraken remains
+  the data venue only. At 0.10% all 6 donchian configs clear the §7.4 kill line
+  (best {40,10}: PF 1.75, DSR 0.70) — but DSR is short of the 95% bar and the
+  deployed config still has 93 of the required 100 trades. NOT a pass yet.
+- Holdout remains SEALED. Do not evaluate it without an explicit human decision.
 - Kill-switch drill completed 2026-08-09/10 (flatten verified, halt verified,
   resume verified). Position currently flat post-drill.
 - §6.3 Bybit demo mirror is ARMED and, since 2026-08-11, actually captures

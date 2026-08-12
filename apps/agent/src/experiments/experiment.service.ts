@@ -206,13 +206,24 @@ export class ExperimentService {
       strategyFamily: family,
       paramsHash: paramsHash(params),
       gitSha: gitSha(),
-      payload: { params, metrics, windows },
+      // `costs` is part of the record, not context: a trial's numbers are only
+      // meaningful against the cost basis that produced them. Trials logged
+      // before 2026-08-12 carry no `costs` key and were run at the retired
+      // 0.26% taker — treat them as superseded (§7.5 D1, D2).
+      payload: { params, metrics, windows, costs: btFor(family as StrategyFamily).costs },
     });
   }
 
+  /**
+   * A config already tried AT THIS COST BASIS. Keying on params alone would let
+   * a corrected re-run silently skip every config and report retired numbers —
+   * which is how a wrong fee survives a correction. Re-running a config at a new
+   * basis is not a new trial for §7.1 budget purposes (same configuration, one
+   * exogenous input changed); it is a new *record* of the same trial.
+   */
   async trialExists(family: string, params: Record<string, number>): Promise<boolean> {
     const rows = await this.dbs.db
-      .select({ id: experiments.id })
+      .select({ payload: experiments.payload })
       .from(experiments)
       .where(
         and(
@@ -221,7 +232,8 @@ export class ExperimentService {
           eq(experiments.paramsHash, paramsHash(params)),
         ),
       );
-    return rows.length > 0;
+    const current = JSON.stringify(btFor(family as StrategyFamily).costs);
+    return rows.some((r) => JSON.stringify((r.payload as { costs?: CostParams }).costs) === current);
   }
 
   async logHoldoutEvaluation(family: string, params: Record<string, number>, metrics: Metrics): Promise<void> {
