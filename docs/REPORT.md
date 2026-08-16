@@ -1,9 +1,9 @@
 # MicroTrading V1 — Evaluation Report
 
-**Status: DRAFT.** The holdout has not been evaluated. Sections marked
-`[PENDING]` are structured but unfilled, deliberately: §7.2 permits the holdout
-exactly one evaluation and it is scheduled for the end of the soak. Everything
-else is final.
+**Status: DRAFT pending the soak only.** The holdout has not been evaluated and,
+on the reasoning in §1.1, **will not be** — it is recorded as sealed and
+unopened, not deferred. The remaining `[PENDING]` is §10, which fills when the
+soak completes 2026-09-04. Everything else is final.
 
 Written to the checklist in **Arnott, Harvey & Markowitz (2019), "A Backtesting
 Protocol in the Era of Machine Learning"** (*Journal of Financial Data Science*),
@@ -28,7 +28,7 @@ any result existed:
 | Profit factor after costs | ≥ 1.1 | 1.45 – 2.37 (6/6 configs) | PASS |
 | Minimum evidence | ≥ 100 trades | 215 raw / **59 effective** | **FAIL** |
 | Deflated Sharpe | > 0 at 95% | **0.82** | **FAIL** |
-| Holdout deflated Sharpe | > 0 at 95% | `[PENDING]` | — |
+| Holdout deflated Sharpe | > 0 at 95% | **not evaluated — sealed (§1.1)** | — |
 
 **This is the pre-registered success condition, not a disappointment.** §7.4,
 frozen before Phase 1 code was written:
@@ -37,6 +37,41 @@ frozen before Phase 1 code was written:
 > honestly nothing passes, the correct output of this project is the
 > infrastructure and the writeup — *that is a successful outcome.* The base
 > rates say this is the most likely outcome; we commit to it in writing now.
+
+Three families were evaluated, not two. The precondition is met and exceeded.
+
+### 1.1 Why the holdout stays sealed
+
+§7.2 permits the holdout exactly one evaluation. This report spends it on
+nothing, and the decision is recorded here rather than left implicit.
+
+**The gate cannot be resolved by the holdout alone.** §7.4's gate to live pilot
+is conjunctive — *all* conditions required. Three of them are not assessable for
+months: ≥3 months paper (the account opened 2026-08-07, so 2026-11-07 at the
+earliest), positive net after costs in pessimistic mode (currently −3.91 USDC on
+a single round trip), and paper-vs-backtest tracking error within the §6.3 bound
+(axis 4 of the calibration gate is NOT EVALUABLE — Bybit demo has zero spread,
+so it cannot be closed on that venue at all). Two more conditions already fail on
+development data: minimum evidence at 59 effective trades of 100, and deflated
+Sharpe at 0.82 of 0.95.
+
+So a favourable holdout would not produce a pass — it would produce a wait. An
+unfavourable one ends the project, which is where the project already is. In
+neither branch does opening it now change an action taken now.
+
+**And the cost of opening it is asymmetric.** §7.5 records that two of three
+deviations followed setbacks (D2 after failure at 0.80%, D3 after DSR stalled at
+0.70). Both entries name the sealed holdout as the control that contains that
+pattern — D2: "the only test not contaminated by that path"; D3: it "now carries
+essentially all of this project's remaining credibility." Spending a one-shot
+control months before its answer could be acted on, in order to learn something
+that changes no decision, is the weakest possible use of it.
+
+**Therefore: sealed, unopened, and reported as such.** It remains available to a
+successor project that arrives with a genuinely new hypothesis rather than a
+re-shopped one. A null result that honours its pre-registration is worth more
+than a pass arrived at by widening — which is the same reasoning D3 used to
+forbid a D4.
 
 ---
 
@@ -76,7 +111,7 @@ this as "trend-following doesn't work" is over-reading it.
 | Item | Value |
 |---|---|
 | N — distinct configurations tried, all families | **34** |
-| N — effective, after trial correlation | `[PENDING — see §11 limitations]` |
+| N — effective, after trial correlation | **not computed, deliberately** — see §11 |
 | T — pooled return observations | ~10 pairs × dev window, per config |
 | Effective independent assets (Kish) | **2.2 – 2.9 of 10** |
 | Return shape | skew/kurtosis feed the DSR directly (`metrics.ts`) |
@@ -251,13 +286,32 @@ talking itself into an answer. The sealed holdout is the remaining control.
   as the conservative choice.
 - Bayesianized p-values under multiple priors (Harvey 2017 §IX.A) are not
   computed.
-- The soak has produced one strategy fill. Live evidence is negligible.
+- The soak has produced one strategy round trip (two fills). Live evidence is
+  negligible.
+- **The 0.03% slippage floor is conservative at p90, but not per-sample.**
+  Hourly Bybit half-spread sampling across all 10 universe pairs (n=1053 as of
+  2026-08-16) gives median 0.0114% and p90 0.0278% — under the floor, which is
+  why §6.3 axis 2 passes. But **62 samples (5.9%) exceed it**, concentrated
+  entirely in the three thinnest pairs: AVAX 24/103 (max 0.044%), ADA 20/103
+  (max 0.057%), ARB 18/103 (max 0.061%). The rate is a steady ~6%/day since
+  sampling began 2026-08-12 and is not clustered by hour, so it is a standing
+  property of those books rather than a transient. BTC/USDC — the only pair
+  actually traded — has zero breaches (max 0.0074%), so the live paper loop's
+  fill model remains pessimistic; the bias lands on the *pooled evaluation*,
+  where the model under-charges those three pairs roughly 6% of the time.
+  Direction flatters the reported PF. Magnitude is bounded by the observed
+  excess (≤0.031 pp over the floor, on ~6% of fills on 3 of 10 pairs), small
+  against the 0.20% round-trip taker fee that dominates cost. Left uncorrected:
+  a per-pair slippage model is a cost-basis change, and D3 froze the spec. Noted
+  here because disclosing it is cheap precisely when the verdict is already null
+  — which is the point at which such things are usually not disclosed.
 
 ---
 
 ## 12. Conclusion
 
-`[PENDING HOLDOUT]`
+`[PENDING — blocked on §10 only; soak completes 2026-09-04. Not blocked on the
+holdout, which is sealed by decision per §1.1.]`
 
 ---
 

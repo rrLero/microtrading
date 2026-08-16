@@ -50,7 +50,9 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
 export default function DashboardPage() {
   const status = useQuery({ queryKey: ['status'], queryFn: api.status });
   const equity = useQuery({ queryKey: ['equity'], queryFn: () => api.equity(720) });
-  const journal = useQuery({ queryKey: ['journal'], queryFn: () => api.journal(30) });
+  // ponytail: ~12 raw journal rows/hour (10 spread-sample + decision + mark), so
+  // 300 covers ~24h. Bump further (cap 500, see status.controller.ts) if needed.
+  const journal = useQuery({ queryKey: ['journal'], queryFn: () => api.journal(300) });
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   // Recomputed each render so relative times stay honest between refetches.

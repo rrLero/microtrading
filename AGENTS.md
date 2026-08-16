@@ -98,9 +98,15 @@ Update it after every significant operational or engineering change.
   publishes 0.10% — it can validate order mechanics ONLY, not fees or slippage.
   Verified 2026-08-11 at 1k and 10k USDC. Don't try again.
 - Slippage evidence comes from **hourly Bybit half-spread sampling across all 10
-  universe pairs** (:07, read-only, `ops/spread-sample`). All under the 0.03%
-  floor; worst is ADA/USDC at ~90% of it — a breach flips the model from
-  pessimistic to optimistic, and the dashboard meter turns red if it happens.
+  universe pairs** (:07, read-only, `ops/spread-sample`). As of 2026-08-16,
+  n=1053: median 0.0114%, p90 0.0278% — under the 0.03% floor at p90, so §6.3
+  axis 2 still PASSES. But **62 samples (5.9%) DO exceed the floor**, all on
+  three thin pairs: AVAX (24/103, max 0.044%), ADA (20/103, max 0.057%), ARB
+  (18/103, max 0.061%). Steady ~6%/day since 2026-08-12, not clustered by hour.
+  BTC/USDC — the only pair actually traded — has ZERO breaches (max 0.0074%),
+  so the live paper loop's fill model remains pessimistic. The breaches bite the
+  pooled 10-pair evaluation, where the model is optimistic ~6% of the time on
+  those three. The dashboard meter turns red on the sample that breaches.
 - Daily calibration probe: cron 13:37 UTC, `ENABLE_CALIBRATION_PROBE`. One ~1000
   USDC demo round trip/day, isolated from paper_account, skips on kill switch.
 - Do NOT run `pnpm build` (repo root) while the dashboard dev server is up —

@@ -355,3 +355,37 @@ probe work uncovered a silent mirror bug.
 - Version control exists as of 2026-08-11 (`git init`). Commit before soak-
   affecting changes; the mirror bug above went 1 day undetected with no history.
 - Next phase gate: Phase 4 (LLM analyst) only after §6.3 calibration passes.
+
+## 2026-08-16 — Calibration re-run, slippage drift, holdout sealed by decision
+
+- Soak healthy: containers up 4 days, 48/48 hourly decision+equity pairs over
+  48h, zero risk/mirror-error/stale-data-halt/tick-error entries. Flat,
+  9,996.09 USDC. Donchian(40,10) channel 62,740–65,500, close 63,078 (3.8%
+  below entry).
+- `calibrate-report`: 14 probe pairs at the current basis, 0 mirror errors.
+  §6.3 verdicts unchanged — fees PASS, slippage PASS, mechanics PASS, fill-model
+  -vs-venue NOT EVALUABLE (and structurally unclosable on a zero-spread demo).
+- **Slippage claim in AGENTS.md was stale and is corrected.** At n=1053 the
+  0.03% floor is conservative at p90 (0.0278%) but NOT per-sample: 62 samples
+  (5.9%) exceed it, all on AVAX (24/103, max 0.044%), ADA (20/103, max 0.057%),
+  ARB (18/103, max 0.061%). Steady ~6%/day since 08-12, not hour-clustered.
+  BTC/USDC — the only traded pair — has zero breaches, so the live loop's fill
+  model stays pessimistic; the optimism lands on the pooled evaluation. Left
+  uncorrected in the model: per-pair slippage is a cost-basis change and D3
+  froze the spec. Disclosed in REPORT §11 instead.
+- **Decision: the holdout will NOT be opened.** Recorded in REPORT §1.1 with the
+  reasoning. §7.4's live gate is conjunctive; three conditions are unassessable
+  until 2026-11-07 at the earliest (≥3mo paper, positive net — currently −3.91
+  USDC, tracking error whose axis is NOT EVALUABLE), and two already fail on dev
+  (59 effective trades of 100; DSR 0.82 of 0.95). A favourable holdout yields a
+  wait, not a pass; an unfavourable one ends a project already at its stopping
+  rule. Spending the one-shot control — the thing D2 and D3 both name as what
+  contains their after-the-setback timing — to learn something that changes no
+  present action is its weakest possible use. It stays sealed for a successor
+  project with a genuinely new hypothesis.
+- REPORT.md is now DRAFT pending §10 only (soak completes 2026-09-04). §12
+  unblocks then. Three families evaluated, two killed — the §7.4 stopping-rule
+  precondition is met and exceeded.
+- Next phase gate, restated: Phase 4's precondition ("only after §6.3 passes")
+  is met on every axis that CAN pass. Axis 4 needs a real-book venue and will
+  not close on demo, so it is not a thing to wait for.
