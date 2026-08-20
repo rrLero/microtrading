@@ -35,7 +35,7 @@ import { journal } from '../db/schema.js';
 @Injectable()
 export class BybitDemoMirrorService {
   private static readonly FRESH_MS = 2 * 60 * 60 * 1000; // 2h — one 1h candle + slack
-  private static readonly READBACK_MS = 25_000; // venue-lag budget; see executionTrades()
+  private static readonly READBACK_MS = 60_000; // venue-lag budget; see executionTrades()
 
   private readonly log = new Logger(BybitDemoMirrorService.name);
   private exchange: Exchange | null = null;
@@ -264,6 +264,14 @@ export class BybitDemoMirrorService {
    * that. Anything shorter silently yields null price/fee. Retune if the venue
    * gets slower; an empty result is returned rather than thrown so the fill is
    * still journaled (flagged readbackTrades: 0) instead of vanishing.
+   *
+   * Budget raised 25s → 60s on 2026-08-20: the venue lag is not bounded by the
+   * 08-11 measurement. The 08-18 16:02Z donchian entry — the ONLY strategy fill
+   * in 13 days, and the entire §6.3 axis-3/4 population — exhausted the 25s
+   * budget and was excluded from calibrate-report with readbackTrades: 0, while
+   * probe fills the same day read back fine. Strategy fills are far too rare to
+   * lose one to a tuning constant; the extra wait costs nothing on a path that
+   * fires roughly once a fortnight.
    *
    * This blocks the paper loop for those seconds. That is deliberate and
    * bounded: at most a couple of fresh fills per hourly tick, and the tick has

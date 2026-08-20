@@ -98,19 +98,28 @@ Update it after every significant operational or engineering change.
   publishes 0.10% — it can validate order mechanics ONLY, not fees or slippage.
   Verified 2026-08-11 at 1k and 10k USDC. Don't try again.
 - Slippage evidence comes from **hourly Bybit half-spread sampling across all 10
-  universe pairs** (:07, read-only, `ops/spread-sample`). As of 2026-08-16,
-  n=1053: median 0.0114%, p90 0.0278% — under the 0.03% floor at p90, so §6.3
-  axis 2 still PASSES. But **62 samples (5.9%) DO exceed the floor**, all on
-  three thin pairs: AVAX (24/103, max 0.044%), ADA (20/103, max 0.057%), ARB
-  (18/103, max 0.061%). Steady ~6%/day since 2026-08-12, not clustered by hour.
-  BTC/USDC — the only pair actually traded — has ZERO breaches (max 0.0074%),
-  so the live paper loop's fill model remains pessimistic. The breaches bite the
-  pooled 10-pair evaluation, where the model is optimistic ~6% of the time on
-  those three. The dashboard meter turns red on the sample that breaches.
+  universe pairs** (:07, read-only, `ops/spread-sample`). As of 2026-08-20,
+  n=1583: median 0.0114%, p90 0.0281% — under the 0.03%
+  floor at p90, so §6.3 axis 2 still PASSES. But **92 samples (5.8%) DO exceed
+  the floor**, on four thin pairs: ADA (34/156, max 0.0576%), AVAX (32/156, max
+  0.0440%), ARB (24/156, max 0.0891%), SUI (2/156, max 0.0311%). Steady ~6%/day
+  since 2026-08-12, not clustered by hour. Two things moved since the 08-16
+  reading: SUI started breaching (it was clean at n=1053), and ARB's worst case
+  went 0.061% → 0.0891%, i.e. ~3× the modelled rate rather than ~2×.
+  BTC/USDC — the only pair actually traded — still has ZERO breaches (n=179,
+  max 0.0074%), so the live paper loop's fill model remains pessimistic. The
+  breaches bite the pooled 10-pair evaluation, where the model is optimistic
+  ~6% of the time on those four. The dashboard meter turns red on the sample
+  that breaches. Re-read these numbers from `calibrate-report` before quoting
+  them; they have gone stale twice.
 - Daily calibration probe: cron 13:37 UTC, `ENABLE_CALIBRATION_PROBE`. One ~1000
   USDC demo round trip/day, isolated from paper_account, skips on kill switch.
-- Do NOT run `pnpm build` (repo root) while the dashboard dev server is up —
-  they share `.next` and it serves 500s. See `apps/dashboard/README.md`.
+- Do NOT run `pnpm build` **or `pnpm test`** (repo root) while the dashboard dev
+  server is up — turbo pulls `dashboard:build` into the test task too, they share
+  `.next`, and the dev server then serves 500s (hit again 2026-08-20). Recovery:
+  stop dev, `rm -rf apps/dashboard/.next`, restart dev. To test the agent safely
+  while dev is up, scope it: `pnpm --filter @microtrading/core test`.
+  See `apps/dashboard/README.md`.
 - Repo is under git as of 2026-08-11. Commit before soak-affecting changes.
 
 ## Safety rules for agents

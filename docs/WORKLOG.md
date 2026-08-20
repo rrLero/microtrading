@@ -389,3 +389,62 @@ probe work uncovered a silent mirror bug.
 - Next phase gate, restated: Phase 4's precondition ("only after §6.3 passes")
   is met on every axis that CAN pass. Axis 4 needs a real-book venue and will
   not close on demo, so it is not a thing to wait for.
+
+## 2026-08-20 — 47h soak outage (laptop down), catch-up replay
+
+- **Outage: 2026-08-18 21:07Z → 2026-08-20 20:30Z (~47.4h).** Cause: the Mac
+  hosting the Docker stack was down. Confirmed by the human. Not a fault —
+  the journal stops cleanly (last decision 21:02Z, last spread sample 21:07Z)
+  with zero `risk` / `tick-error` / `mirror-error` / `stale-data-halt`
+  entries. Containers back up 20:30Z, `loopEnabled: true`, `killSwitch: false`.
+- State at the moment of the outage, carried across it unchanged: LONG
+  0.0154213 BTC @ 64,839.65 (entered 08-18 16:02Z, "donchian entry"), stop
+  64,030.76, last mark 64,544.10 (0.80% above stop), equity 9,990.53.
+- **What fills itself:** the 1h series and the paper record. `runOnce()`
+  backfills 7 days of candles from Bybit REST, then replays every candle past
+  `lastProcessedTs` (`MAX_REPLAY = 500`; ~47 needed, so no truncation) with the
+  full per-candle sequence — pending fill at open, pessimistic stop check, day
+  roll, equity point, decision. Replayed decisions are journaled with
+  `replayed: true`. The stop may therefore trigger retroactively inside the gap;
+  that is the intended §6.2 behaviour, not a defect.
+- **What is permanently lost, and cannot be reconstructed:**
+  - ~47 hourly spread samples × 10 pairs (~470 rows). The sampler reads live
+    top-of-book via `fetchTickers`; Bybit publishes no historical bid/ask, so
+    there is nothing to backfill from. The §6.3 axis-2 evidence base simply has
+    a hole from 08-18 21:07Z to 08-20 21:07Z. n and the 5.9% breach rate are
+    unaffected in kind — the sample is just smaller than the calendar implies.
+  - 2 daily calibration probes (13:37Z on 08-19 and 08-20). A probe run now
+    would be a probe dated now, not a backdated one; the cron resumes 08-21.
+    §6.3 pair count is 2 short of what the elapsed days would suggest.
+- **Soak clock:** the 4-week window still runs to 2026-09-04 by calendar, but
+  ~2 of those days produced no observations. Any figure quoted as "N days of
+  soak" must be net of this outage or it overstates the evidence.
+- No code change. Nothing to fix — the design already fails closed on stale
+  data and self-heals on restart, and it did both.
+- **Replay outcome (21:02Z):** `catch-up` journaled `missed: 48`, from
+  2026-08-18 21:00Z to 2026-08-20 20:00Z. 48 decisions written (47 `replayed:
+  true` + 1 live), all `hold`. **No fills — the stop never triggered inside the
+  gap.** Position intact at 0.0154213 BTC @ 64,839.65, stop 64,030.76.
+  BTC ran to 72,658 during the outage (+12.1% from entry): equity 10,115.66,
+  the first time the paper account has been net positive (was −3.91 USDC on
+  08-16). Channel now 64,124.4–72,792.3, 4h close 72,664 — 11.7% above the
+  exit trigger. Note the stop does NOT trail; the donchian exit channel does
+  that job, so the stop sits ~11.9% below mark by design.
+- **Code change: `READBACK_MS` 25s → 60s** in `bybit-demo-mirror.service.ts`.
+  `calibrate-report` showed `STRATEGY FILLS — 0 pair(s)`: the 08-18 16:02Z
+  donchian entry — the only strategy fill in 13 days and the entire §6.3
+  axis-3/4 population — filled on demo (`demoFilledQty` set) but exhausted the
+  25s read-back budget, so `demoAvgPrice`/`demoFeeUsdc` came back null and the
+  pair was excluded. Probe fills the same day read back fine, so this is
+  intermittent venue lag past the budget, not a broken path. The 08-11 "4-9s"
+  measurement is not an upper bound. Typecheck clean, 6/6 tests, deployed and
+  verified in `dist`. This does not change any §6.3 verdict — axis 4 remains
+  structurally unclosable on a zero-spread demo — it only stops discarding
+  evidence from the rarest event the system produces.
+- AGENTS.md slippage figures refreshed (stale for the second time): n=1583,
+  92 breaches (5.8%), p90 0.0281%, worst now ARB 0.0891% (~3× the model, was
+  ~2×), and SUI has started breaching — four thin pairs now, not three.
+  BTC/USDC still zero breaches (n=179, max 0.0074%).
+- AGENTS.md `.next` warning widened to cover `pnpm test`, not just `pnpm build`
+  — turbo pulls `dashboard:build` into the test task, and running it with the
+  dev server up served 500s again today.
