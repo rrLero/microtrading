@@ -207,7 +207,66 @@ function row(label: string, b: Bucket): string {
  * is not evidence of a negative one. A flat month (exactly zero) also breaks it:
  * flat is not negative, and §7.2 is explicit that being flat is not failure.
  */
-function reportMonthly(byMonth: Map<string | number, Bucket>): void {
+/**
+ * Which pairs produced a given month?
+ *
+ * The pooled month is the PRODUCT of the per-pair growths (returns from every
+ * pair are compounded into one bucket), so this attribution is exact rather than
+ * an approximation. The question it settles: a month that is market-wide across
+ * the universe is a beta event every trend-follower caught, while one carried by
+ * a single pair is a far thinner result wearing a pooled disguise.
+ */
+function attributeMonth(
+  month: string,
+  perPair: { symbol: string; returns: { ts: number; r: number }[]; trades: Trade[] }[],
+  growthAll: number,
+): void {
+  const rows = perPair
+    .map((p) => {
+      let growth = 1;
+      for (const r of p.returns) if (monthKey(r.ts) === month) growth *= 1 + r.r;
+      const trades = p.trades.filter((t) => monthKey(t.entryTs) === month).length;
+      return { symbol: p.symbol, net: (growth - 1) * 100, trades };
+    })
+    .sort((a, b) => b.net - a.net);
+
+  const contributing = rows.filter((r) => r.net > 0).length;
+  console.log(`\n  attribution of ${month} by pair:`);
+  for (const r of rows) {
+    if (r.net === 0 && r.trades === 0) continue;
+    console.log(`    ${r.symbol.padEnd(10)} ${r.net.toFixed(1).padStart(7)}%  ${String(r.trades).padStart(3)} trades`);
+  }
+  const top = rows[0];
+  console.log(
+    contributing >= 5
+      ? `  BREADTH: market-wide — ${contributing} of ${rows.length} pairs contributed positively.\n` +
+          `  A beta event the whole universe delivered, not a single-pair artifact.`
+      : `  BREADTH: narrow — only ${contributing} of ${rows.length} pairs contributed${top ? `, led by ${top.symbol}` : ''}.\n` +
+          `  A pooled figure is hiding how few pairs actually produced it.`,
+  );
+
+  // Breadth alone flatters: "7 of 10 pairs up" can still be two pairs carrying
+  // the month. Shares are LOG shares — returns compound, so an arithmetic share
+  // of a large move overstates it.
+  const growthMonth = rows.reduce((g, r) => g * (1 + r.net / 100), 1);
+  const two = rows.slice(0, 2);
+  const growthTwo = two.reduce((g, r) => g * (1 + r.net / 100), 1);
+  if (two.length === 2 && growthMonth > 1 && growthAll > 1) {
+    const ofMonth = (Math.log(growthTwo) / Math.log(growthMonth)) * 100;
+    const ofAll = (Math.log(growthTwo) / Math.log(growthAll)) * 100;
+    const names = two.map((r) => r.symbol.split('/')[0]).join(' + ');
+    const trades = two.reduce((n, r) => n + r.trades, 0);
+    console.log(
+      `  CONCENTRATION: ${names} alone are ${ofMonth.toFixed(0)}% of the month and ` +
+        `${ofAll.toFixed(0)}% of the\n  ENTIRE period, on ${trades} trades. Log shares.`,
+    );
+  }
+}
+
+function reportMonthly(
+  byMonth: Map<string | number, Bucket>,
+  perPair: { symbol: string; returns: { ts: number; r: number }[]; trades: Trade[] }[],
+): void {
   const keys = [...byMonth.keys()].map(String).sort();
   if (keys.length === 0) return;
   const all = monthRange(keys[0]!, keys[keys.length - 1]!);
@@ -250,6 +309,7 @@ function reportMonthly(byMonth: Map<string | number, Bucket>): void {
       console.log(`  ${share.toFixed(0)}% of the entire result is ONE month. Treat the aggregate PF`);
       console.log(`  as a description of that month, not as evidence of a persistent edge (REVIEW R8).`);
     }
+    attributeMonth(bestKey, perPair, growthAll);
   }
 
   let run = 0;
@@ -280,7 +340,12 @@ function reportMonthly(byMonth: Map<string | number, Bucket>): void {
 }
 
 function reportSegments(
-  perPair: { returns: { ts: number; r: number }[]; trades: Trade[]; regimes: Map<number, RegimeLabel> }[],
+  perPair: {
+    symbol: string;
+    returns: { ts: number; r: number }[];
+    trades: Trade[];
+    regimes: Map<number, RegimeLabel>;
+  }[],
 ): void {
   const byRegime = new Map<string | number, Bucket>();
   const byYear = new Map<string | number, Bucket>();
@@ -351,7 +416,7 @@ function reportSegments(
     console.log(row(String(y), byYear.get(y)!));
   }
 
-  reportMonthly(byMonth);
+  reportMonthly(byMonth, perPair);
 
   // §7.2's actual requirement, stated as a verdict rather than left to the reader.
   const bear = byRegime.get('bear');
@@ -525,9 +590,9 @@ async function main(): Promise<void> {
     if (best) {
       console.log(`\n=== §7.2 REGIME & YEAR BREAKDOWN — ${JSON.stringify(best.params)} ===`);
       console.log(`Regime is classified from PRICE ONLY (200-day MA slope + drawdown), never from anything the strategy knows.`);
-      const parts = [...dev.entries()].map(([, candles]) => {
+      const parts = [...dev.entries()].map(([sym, candles]) => {
         const part = experiments.evaluateParts(family, best.params, candles, costs);
-        return { returns: part.returns, trades: part.trades, regimes: regimeByDay(candles) };
+        return { symbol: sym, returns: part.returns, trades: part.trades, regimes: regimeByDay(candles) };
       });
       reportSegments(parts);
     }

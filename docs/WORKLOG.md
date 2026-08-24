@@ -697,3 +697,29 @@ probe work uncovered a silent mirror bug.
   establish an edge if the entire profit came from one month of one bull run.
 - Core suite 36/36, agent typecheck clean. No container redeploy (CLI reporting
   and a new core module; the trading loop calls neither).
+
+## 2026-08-24 (e) — November 2024 attribution: market-wide, but half of it is two pairs
+
+- Added per-pair attribution of the concentrating month to `run-universe`'s
+  concentration block (`attributeMonth`), reporting BREADTH and CONCENTRATION
+  separately — breadth alone flatters, since "7 of 10 pairs up" can still be two
+  pairs carrying the month. Shares are LOG shares; returns compound, so the
+  arithmetic share of a large move overstates it (77% arithmetic vs 70% log for
+  the same quantity). Put in the tool rather than a throwaway script because
+  REPORT.md Appendix A promises every number is reproducible from the listed
+  commands.
+- **Answer: genuinely market-wide.** donchian 7 of 10 pairs positive in 2024-11,
+  sma-crossover 6 of 10. Not a single-pair artifact.
+- **But within the month it is two pairs.** XRP + ADA are 71% (donchian) and 74%
+  (sma-crossover) of that month, which is **50% and 53% of each family's ENTIRE
+  three-year result — on 2 and 3 trades respectively.**
+- **Both families picked the same two pairs in the same month.** That is direct
+  visible evidence that donchian-breakout and sma-crossover are substantially the
+  same trade wearing different parameters — the correlated-trials problem that
+  the DSR's N=34 deflation exists to price, showing up in the open rather than as
+  a statistical abstraction. It also explains why their aggregate PFs, Sharpes
+  and DSRs sit so close together despite quite different entry logic.
+- Report §1.1 updated with the attribution table and the corrected log shares.
+- This is the last analysis this evidence supports. Next: draft §10
+  (infrastructure result), which is the project's actual deliverable under
+  §7.4's stopping rule.

@@ -90,9 +90,35 @@ project computed for six weeks. The deflated Sharpe was the only aggregate that
 hinted at it (0.82 and 0.87, both short of 0.95), which is the argument for the
 DSR in miniature.
 
-It also disposes of the tempting response to a null: *"the edge is small but
-real, just under-powered."* An edge that is 77% one month is not a small
-persistent edge. It is one trade the market handed to every trend-follower alive.
+**Attribution of that month, by pair.** The natural objection — that a pooled
+figure is hiding one runaway pair — does not hold, and the truth is more
+interesting:
+
+| | donchian | sma-crossover |
+|---|---|---|
+| Pairs contributing positively | 7 of 10 | 6 of 10 |
+| Best month as share of whole period | 70% | 72% |
+| **XRP + ADA as share of that month** | **71%** | **74%** |
+| **XRP + ADA as share of the ENTIRE period** | **50%** | **53%** |
+| …on this many trades | 2 | 3 |
+
+*(Log shares — returns compound, so an arithmetic share of a large move
+overstates it. The 77%/79% figures above are arithmetic; 70%/72% are the same
+quantity measured correctly.)*
+
+So it is genuinely **market-wide** — most of the universe rose and both families
+caught it, which is what a beta event looks like. But within that month, **XRP
+and ADA alone are roughly half of each family's entire three-year result, on two
+or three trades.** And both families selected the same two pairs in the same
+month, which is direct evidence that `donchian-breakout` and `sma-crossover` are
+substantially the *same trade* in different parameters — the correlated-trials
+problem the deflated Sharpe's N=34 exists to price, showing up in the open.
+
+This disposes of the tempting response to a null: *"the edge is small but real,
+just under-powered."* An edge that is half two positions in one month is not a
+small persistent edge. It is one move the market handed to every trend-follower
+alive, and the strategies' merit is that they were long for it — which is a
+statement about November 2024, not about the strategies.
 
 ### 1.2 Why the holdout stays sealed
 
