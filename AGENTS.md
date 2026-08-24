@@ -61,7 +61,7 @@ Typecheck without emitting: `cd apps/agent && ./node_modules/.bin/tsc -p tsconfi
 See `docs/WORKLOG.md` for the running log of what has been done and why.
 Update it after every significant operational or engineering change.
 
-## Operational state (as of 2026-08-12 — update when it changes)
+## Operational state (as of 2026-08-24 — update when it changes)
 
 - Agent runs in Docker on this Mac (`docker-compose.local.yml`, same compose
   project + `pgdata` volume as dev compose → data is shared with host tooling
@@ -80,38 +80,80 @@ Update it after every significant operational or engineering change.
   - Evaluation runs **pooled over a 10-pair universe** (`experiments/universe.json`,
     pre-registered, immutable — pooled is the verdict, never per-pair selection).
     **Trading is still ONE open position on BTC/USDC**; the universe widened what
-    we measure, not what we hold. Concurrent positions need §5.4 first.
-- Current evidence (dev, pooled, 0.10%): 6/6 configs clear the §7.4 kill line,
-  best {55,20} PF 2.37 — but **59 effective trades of 100 required** and
-  **DSR 0.82 of 0.95**. Minimum detectable Sharpe is 1.04 against an observed
-  0.85, so the null is bounded, not absolute. NOT a pass. See `docs/REPORT.md`.
+    we measure, not what we hold. **§5.4 is a "V2 preview (not built now)" and
+    §5.3 pins V1 to "max 1 open position (BTC only)" — concurrent positions are
+    OUT OF V1 SCOPE, not a pending task.**
+- Current evidence (dev, pooled, 0.10%), **all three families re-run at the
+  current basis 2026-08-24**:
+  - `sma-crossover` **11/12** clear the kill line; best {fast 10, slow 200,
+    trendSma4h 30} PF 1.99, 497 raw / **144 effective** trades, DSR 0.87.
+  - `donchian-breakout` 6/6 clear; best {55,20} PF 2.37, 215 raw / 59 effective,
+    DSR 0.82.
+  - `rsi-reversion` **0/16** clear; best PF 0.74, Sharpe −0.78, 599 raw / 214
+    effective — a well-powered NEGATIVE result. This family is dead.
+- **§7.4's evidence floor is "100 trades of concatenated OOS + paper" — READ THE
+  SPEC TEXT, not a summary.** Donchian's 215 walk-forward OOS trades already met
+  it. The "59 effective" deflation is a TOOL-side addition that is NOT in the
+  spec; it was recorded here for weeks as though it were the requirement and it
+  silently blocked the project. Either log it as deviation D4 or drop it.
+- §7.4's kill criteria do NOT fire on donchian or sma-crossover. Dev DSR is NOT
+  a gate: §7.4 wants DSR >0 at 95% confidence **on the holdout**, and that clause
+  belongs to the *gate to live pilot*, which V1 does not pursue (§1.2 non-goal).
+- Still not certifiable: best Sharpe 0.89 is below its minimum detectable 1.04.
+  The null is bounded, not absolute. See `docs/REPORT.md`.
+- **§7.2 regime reporting exists as of 2026-08-24** (`packages/core/src/regime.ts`,
+  printed by `run-universe`). Both surviving families PASS the long-only bear
+  test (donchian 10.3% bear exposure, sma-crossover 16.2% — they stand aside).
+  **But BOTH are carried by 2024 and BOTH are net negative in 2025**: donchian
+  2024 +76.0% / 2025 −2.4% (PF 0.88); sma-crossover 2024 +96.9% / 2025 −10.6%
+  (PF 0.70). The advertised aggregate PF ~2 is substantially one calendar year.
+  **DO NOT take either family to the holdout.** Monthly granularity (added
+  2026-08-24) shows the result is essentially ONE MONTH: excluding 2024-11,
+  donchian returns +24.1% instead of +104.0% (77% of the result is that month)
+  and sma-crossover +25.0% instead of +120.9% (79%). Three years of pooled
+  10-pair walk-forward OOS then yields ~8-9%/yr with 36-48% of months negative.
+  §7.4's "3 consecutive months net negative" also fires for both (donchian to
+  2024-06, sma to 2024-08) — but that is incidental: a 3-month run over 25-37
+  months is unremarkable. The CONCENTRATION is the evidence.
+  `run-universe` now prints all of this automatically.
 - **SPEC IS FROZEN.** D3 was declared the final amendment before the holdout.
   Do not widen scope again; if results disappoint, §7.4's stopping rule applies.
 - Holdout remains SEALED. Do not evaluate it without an explicit human decision.
 - Kill-switch drill completed 2026-08-09/10 (flatten, halt, resume all verified).
   Next drill due ~2026-09-09.
 - §6.3 gate is stated BY COMPONENT, not as one aggregate (`calibrate-report`):
-  fees vs the published schedule (PASS), slippage vs the sampled book (PASS,
-  provisional), mechanics via demo (PASS), fill-model-vs-venue NOT EVALUABLE.
+  fees vs the published schedule (PASS), slippage vs the sampled book (**FAIL as
+  of 2026-08-24** — was PASS through 08-20), mechanics via demo (PASS),
+  fill-model-vs-venue NOT EVALUABLE.
   Pairs computed at a superseded cost basis are excluded automatically.
 - Bybit demo fills at last price with ZERO spread and charges ~0.05% where live
   publishes 0.10% — it can validate order mechanics ONLY, not fees or slippage.
   Verified 2026-08-11 at 1k and 10k USDC. Don't try again.
 - Slippage evidence comes from **hourly Bybit half-spread sampling across all 10
-  universe pairs** (:07, read-only, `ops/spread-sample`). As of 2026-08-20,
-  n=1583: median 0.0114%, p90 0.0281% — under the 0.03%
-  floor at p90, so §6.3 axis 2 still PASSES. But **92 samples (5.8%) DO exceed
-  the floor**, on four thin pairs: ADA (34/156, max 0.0576%), AVAX (32/156, max
-  0.0440%), ARB (24/156, max 0.0891%), SUI (2/156, max 0.0311%). Steady ~6%/day
-  since 2026-08-12, not clustered by hour. Two things moved since the 08-16
-  reading: SUI started breaching (it was clean at n=1053), and ARB's worst case
-  went 0.061% → 0.0891%, i.e. ~3× the modelled rate rather than ~2×.
-  BTC/USDC — the only pair actually traded — still has ZERO breaches (n=179,
+  universe pairs** (:07, read-only, `ops/spread-sample`). **As of 2026-08-24,
+  n=2283: median 0.0137%, p90 0.0324%, max 0.1807% — p90 is now ABOVE the 0.03%
+  model, so §6.3 axis 2 FAILS.** It passed at every prior reading; the flip is
+  real, not a rounding wobble. **278 samples (12.2%) exceed the floor**, now on
+  seven pairs: AVAX (71/226, p90 0.0340%), ADA (70/226, p90 0.0553%), ARB
+  (66/226, p90 0.0487%, max 0.1807%), SUI (31/226), DOGE (30/226), SOL (8/226),
+  XRP (2/226). Clean: BTC, ETH, MNT.
+  **A liquidity regime changed on 2026-08-21**: daily breach rate went ~5% (08-13
+  → 08-18) to 24%/35%/27%/22% (08-21 → 08-24). Not a price artifact — those pairs
+  RALLIED 18–30% over the same window, which shrinks a fixed tick as a percentage,
+  so the books genuinely widened against that tailwind. DOGE went 0% → 42.9%
+  breaches, SUI 1.3% → 41.4%. **The restart confound was tested and CLEARED on
+  2026-08-24**: an independent host-side read (raw Bybit v5 REST, no ccxt, no
+  container) against the container's :07 sample gave 5 exact matches out of 10,
+  with the rest split symmetrically (2 pairs host-higher at 2.00×, 3 host-lower
+  at ~0.60×) — tick-quantisation jumps over the 19-minute gap, not systematic
+  inflation. The sampler reads the same book the host does; the deterioration
+  is real market structure. Do not re-litigate this.
+  BTC/USDC — the only pair actually traded — still has ZERO breaches (n=249,
   max 0.0074%), so the live paper loop's fill model remains pessimistic. The
-  breaches bite the pooled 10-pair evaluation, where the model is optimistic
-  ~6% of the time on those four. The dashboard meter turns red on the sample
-  that breaches. Re-read these numbers from `calibrate-report` before quoting
-  them; they have gone stale twice.
+  breaches bite the pooled 10-pair evaluation, where the model is now optimistic
+  ~12% of the time. The dashboard meter turns red on the sample that breaches.
+  Re-read these numbers from `calibrate-report` before quoting them; they have
+  gone stale three times.
 - Daily calibration probe: cron 13:37 UTC, `ENABLE_CALIBRATION_PROBE`. One ~1000
   USDC demo round trip/day, isolated from paper_account, skips on kill switch.
 - Do NOT run `pnpm build` **or `pnpm test`** (repo root) while the dashboard dev

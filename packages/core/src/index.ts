@@ -10,3 +10,4 @@ export * from './backtest/walk-forward.js';
 export * from './strategies/sma-crossover.js';
 export * from './strategies/rsi-reversion.js';
 export * from './strategies/donchian-breakout.js';
+export * from './regime.js';

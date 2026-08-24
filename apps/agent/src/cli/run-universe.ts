@@ -1,13 +1,23 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { computeMetricsFromParts, minimumDetectableSharpe, type Candle, type Trade } from '@microtrading/core';
+import {
+  REGIME_ORDER,
+  computeMetricsFromParts,
+  minimumDetectableSharpe,
+  regimeByDay,
+  utcDay,
+  utcYear,
+  type Candle,
+  type RegimeLabel,
+  type Trade,
+} from '@microtrading/core';
 import { AppModule } from '../app.module.js';
 import { CandleRepository } from '../market-data/candle-repository.js';
 import { ExperimentService, btFor, type StrategyFamily } from '../experiments/experiment.service.js';
 import { loadUniverse } from '../experiments/universe.js';
 
 /**
- * Pooled multi-pair walk-forward:  pnpm run-universe -- <family>
+ * Pooled multi-pair walk-forward:  pnpm run-universe -- <family> [slippageRate]
  *
  * Runs the UNCHANGED pre-registered grid across the pre-registered universe
  * (experiments/universe.json), pooling returns and trades across pairs and
@@ -19,6 +29,14 @@ import { loadUniverse } from '../experiments/universe.js';
  * own evidence exactly the way an undeflated Sharpe does.
  *
  * Holdout is never touched — dev data only.
+ *
+ * The optional slippageRate overrides §6.2's modelled floor for SENSITIVITY
+ * ANALYSIS ONLY — e.g. re-pricing the grid at the observed p90 half-spread when
+ * §6.3 axis 2 fails. Like cost-sensitivity, it re-evaluates the UNCHANGED grid
+ * on the UNCHANGED dev window varying one input constant, records nothing, and
+ * creates no new selection opportunity, so N is unaffected (SPEC §7.1). It does
+ * NOT amend §6.2: the deployed model is whatever btFor() says until a human
+ * amends the spec.
  */
 
 /** Pearson correlation of two equal-length series. */
@@ -98,10 +116,280 @@ function effectiveAssets(C: number[][]): { kish: number; spectral: number; rhoBa
   return { kish, spectral, rhoBar };
 }
 
+/**
+ * SPEC §7.2 regime + calendar-year reporting (resolves REVIEW R8).
+ *
+ * An aggregate PF hides WHERE the money came from. R8's warning is that a
+ * sample dominated by one regime says nothing about the others, and that
+ * long-only strategies are exactly the ones a trending sample flatters. So the
+ * two numbers that matter here are per-segment contribution and per-segment
+ * EXPOSURE — §7.2 requires a long-only strategy to demonstrate it stands aside
+ * in bear segments, and "flat for months is success, not failure".
+ *
+ * Exposure is counted in pair-days: a day on which any position was open on a
+ * pair counts once for that pair. Days before the 200-day mean warms up carry
+ * no regime label and are excluded from every bucket rather than folded into
+ * one — silently bucketing them would attribute the first ~7 months of each
+ * pair to whichever label happened to be the default.
+ */
+interface Bucket {
+  days: number;
+  inPos: number;
+  trades: number;
+  win: number;
+  loss: number;
+  growth: number;
+}
+
+const emptyBucket = (): Bucket => ({ days: 0, inPos: 0, trades: 0, win: 0, loss: 0, growth: 1 });
+
+function accumulate(
+  buckets: Map<string | number, Bucket>,
+  key: string | number | undefined,
+  fn: (b: Bucket) => void,
+): void {
+  if (key === undefined) return;
+  let b = buckets.get(key);
+  if (!b) {
+    b = emptyBucket();
+    buckets.set(key, b);
+  }
+  fn(b);
+}
+
+function daysHeld(trades: readonly Trade[]): Set<number> {
+  const held = new Set<number>();
+  for (const t of trades) {
+    for (let d = utcDay(t.entryTs); d <= utcDay(t.exitTs); d++) held.add(d);
+  }
+  return held;
+}
+
+/** 'YYYY-MM' for a UTC timestamp — sorts lexicographically, which the run scan relies on. */
+function monthKey(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Every calendar month from `from` to `to` inclusive, so gaps in the data stay visible. */
+function monthRange(from: string, to: string): string[] {
+  const out: string[] = [];
+  let [y, m] = from.split('-').map(Number) as [number, number];
+  const [ty, tm] = to.split('-').map(Number) as [number, number];
+  while (y < ty || (y === ty && m <= tm)) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+  }
+  return out;
+}
+
+function pf(b: Bucket): string {
+  if (b.loss === 0) return b.win > 0 ? 'inf' : 'n/a';
+  return (b.win / b.loss).toFixed(2);
+}
+
+function row(label: string, b: Bucket): string {
+  const exposure = b.days > 0 ? (100 * b.inPos) / b.days : 0;
+  return (
+    `${label.padEnd(10)} | ${String(b.days).padStart(9)} | ${exposure.toFixed(1).padStart(8)} | ` +
+    `${String(b.trades).padStart(6)} | ${((b.growth - 1) * 100).toFixed(1).padStart(7)} | ${pf(b).padStart(5)}`
+  );
+}
+
+/**
+ * Monthly table plus §7.4's third kill criterion: "3 consecutive calendar
+ * months net negative".
+ *
+ * Months are walked over a CONTINUOUS calendar range, not just the months that
+ * happen to carry data, so a gap cannot silently join two negative stretches
+ * into one apparent run. A month with no data breaks a run — an unknown month
+ * is not evidence of a negative one. A flat month (exactly zero) also breaks it:
+ * flat is not negative, and §7.2 is explicit that being flat is not failure.
+ */
+function reportMonthly(byMonth: Map<string | number, Bucket>): void {
+  const keys = [...byMonth.keys()].map(String).sort();
+  if (keys.length === 0) return;
+  const all = monthRange(keys[0]!, keys[keys.length - 1]!);
+
+  console.log(`\n--- §7.2 BY CALENDAR MONTH ---`);
+  console.log(`month    |    net% | trades | expos.%`);
+  for (const k of all) {
+    const b = byMonth.get(k);
+    if (!b) {
+      console.log(`${k.padEnd(8)} |       — | no data |       —`);
+      continue;
+    }
+    const net = (b.growth - 1) * 100;
+    const expos = b.days > 0 ? (100 * b.inPos) / b.days : 0;
+    console.log(
+      `${k.padEnd(8)} | ${net.toFixed(1).padStart(7)} | ${String(b.trades).padStart(6)} | ${expos.toFixed(1).padStart(7)}`,
+    );
+  }
+
+  // Concentration: how much of the whole result is one month?
+  // An aggregate PF cannot distinguish "a persistent edge" from "one enormous
+  // month plus noise", and those have opposite implications for a live pilot.
+  const active = all.map((k) => byMonth.get(k)).filter((b): b is Bucket => b !== undefined);
+  if (active.length > 0) {
+    const growthAll = active.reduce((g, b) => g * b.growth, 1);
+    let bestKey = '';
+    let bestGrowth = -Infinity;
+    for (const k of all) {
+      const b = byMonth.get(k);
+      if (b && b.growth > bestGrowth) { bestGrowth = b.growth; bestKey = k; }
+    }
+    const growthEx = growthAll / bestGrowth;
+    const negatives = active.filter((b) => b.growth < 1).length;
+    console.log(`\n--- concentration ---`);
+    console.log(`  full period ${((growthAll - 1) * 100).toFixed(1)}% over ${active.length} active months, ${negatives} of them negative.`);
+    console.log(`  best single month ${bestKey}: ${((bestGrowth - 1) * 100).toFixed(1)}%.`);
+    console.log(`  EXCLUDING it, the whole period returns ${((growthEx - 1) * 100).toFixed(1)}%.`);
+    const share = growthAll > 1 ? (1 - (growthEx - 1) / (growthAll - 1)) * 100 : NaN;
+    if (Number.isFinite(share) && share >= 50) {
+      console.log(`  ${share.toFixed(0)}% of the entire result is ONE month. Treat the aggregate PF`);
+      console.log(`  as a description of that month, not as evidence of a persistent edge (REVIEW R8).`);
+    }
+  }
+
+  let run = 0;
+  let worst = 0;
+  let worstEnd = '';
+  for (const k of all) {
+    const b = byMonth.get(k);
+    const net = b ? b.growth - 1 : null;
+    if (net !== null && net < 0) {
+      run += 1;
+      if (run > worst) { worst = run; worstEnd = k; }
+    } else {
+      run = 0;
+    }
+  }
+
+  console.log(`\n--- §7.4 kill criterion: 3 consecutive calendar months net negative ---`);
+  if (worst >= 3) {
+    console.log(`  FIRES — longest negative run is ${worst} months, ending ${worstEnd}.`);
+    console.log(`  §7.4 lists this as sufficient on its own to kill a strategy.`);
+    console.log(`  NOTE: §7.4 scopes the kill criteria to "OOS/paper". These are pooled`);
+    console.log(`  walk-forward OOS months, so the criterion is evaluable here — but whether`);
+    console.log(`  a DEV-window run kills a family, or only a realized paper run does, is a`);
+    console.log(`  reading of the spec that a human must make. Do not treat this as automatic.`);
+  } else {
+    console.log(`  does not fire — longest negative run is ${worst} month(s).`);
+  }
+}
+
+function reportSegments(
+  perPair: { returns: { ts: number; r: number }[]; trades: Trade[]; regimes: Map<number, RegimeLabel> }[],
+): void {
+  const byRegime = new Map<string | number, Bucket>();
+  const byYear = new Map<string | number, Bucket>();
+  const byMonth = new Map<string | number, Bucket>();
+
+  for (const p of perPair) {
+    const held = daysHeld(p.trades);
+
+    for (const [day, label] of p.regimes) {
+      accumulate(byRegime, label, (b) => {
+        b.days++;
+        if (held.has(day)) b.inPos++;
+      });
+    }
+    // Calendar-year day/exposure counts use the same labelled-day population,
+    // so the two tables are directly comparable.
+    for (const [day] of p.regimes) {
+      const ts = day * 86_400_000;
+      const tally = (b: Bucket): void => {
+        b.days++;
+        if (held.has(day)) b.inPos++;
+      };
+      accumulate(byYear, utcYear(ts), tally);
+      accumulate(byMonth, monthKey(ts), tally);
+    }
+
+    for (const r of p.returns) {
+      const label = p.regimes.get(utcDay(r.ts));
+      accumulate(byRegime, label, (b) => {
+        b.growth *= 1 + r.r;
+      });
+      if (label !== undefined) {
+        accumulate(byYear, utcYear(r.ts), (b) => { b.growth *= 1 + r.r; });
+        accumulate(byMonth, monthKey(r.ts), (b) => { b.growth *= 1 + r.r; });
+      }
+    }
+
+    for (const t of p.trades) {
+      // A trade belongs to the regime it was ENTERED in — that is the state the
+      // strategy actually acted on. Attributing by exit would credit decisions
+      // to information they did not have.
+      const label = p.regimes.get(utcDay(t.entryTs));
+      const tally = (b: Bucket): void => {
+        b.trades++;
+        if (t.pnl >= 0) b.win += t.pnl;
+        else b.loss += -t.pnl;
+      };
+      accumulate(byRegime, label, tally);
+      if (label !== undefined) {
+        accumulate(byYear, utcYear(t.entryTs), tally);
+        accumulate(byMonth, monthKey(t.entryTs), tally);
+      }
+    }
+  }
+
+  const header = `segment    | pair-days | expos.% | trades |    net% |    PF`;
+
+  console.log(`\n--- §7.2 BY REGIME SEGMENT (200-day MA slope + drawdown state) ---`);
+  console.log(header);
+  for (const label of REGIME_ORDER) {
+    const b = byRegime.get(label);
+    if (b) console.log(row(label, b));
+  }
+
+  console.log(`\n--- §7.2 BY CALENDAR YEAR ---`);
+  console.log(header);
+  for (const y of [...byYear.keys()].sort((a, b) => Number(a) - Number(b))) {
+    console.log(row(String(y), byYear.get(y)!));
+  }
+
+  reportMonthly(byMonth);
+
+  // §7.2's actual requirement, stated as a verdict rather than left to the reader.
+  const bear = byRegime.get('bear');
+  console.log(`\n--- §7.2 long-only bear test ---`);
+  if (!bear || bear.days === 0) {
+    console.log('  NO bear days in the development window — the sample cannot demonstrate');
+    console.log('  bear behaviour at all. That is a gap in the EVIDENCE, not a pass (REVIEW R8).');
+    return;
+  }
+  const exposure = (100 * bear.inPos) / bear.days;
+  const share = ((bear.growth - 1) * 100).toFixed(1);
+  console.log(`  bear: ${bear.days} pair-days, ${exposure.toFixed(1)}% exposed, ${bear.trades} trades, ${share}% net.`);
+  console.log(
+    exposure <= 25
+      ? `  DEMONSTRATED — the strategy largely stands aside in bear segments.\n` +
+          `  §7.2: being flat for months is success, not failure.`
+      : `  NOT DEMONSTRATED — ${exposure.toFixed(1)}% exposure in bear segments is not "flat".\n` +
+          `  §7.2 requires a long-only strategy to show it steps aside; this one does not.`,
+  );
+}
+
 async function main(): Promise<void> {
-  const family = process.argv.slice(2).filter((a) => a !== '--')[0] as StrategyFamily | undefined;
+  const args = process.argv.slice(2).filter((a) => a !== '--');
+  const family = args[0] as StrategyFamily | undefined;
   if (!family) {
-    console.error('Usage: pnpm run-universe -- <family>');
+    console.error("Usage: pnpm run-universe -- <family> [slippageRate, e.g. 0.000324 or 0.0324%]");
+    process.exitCode = 1;
+    return;
+  }
+  // Accept either a fraction (0.000324) or a percent string (0.0324%).
+  const slipArg = args[1];
+  const slippageOverride = slipArg
+    ? slipArg.trim().endsWith('%')
+      ? Number(slipArg.trim().slice(0, -1)) / 100
+      : Number(slipArg)
+    : undefined;
+  if (slippageOverride !== undefined && !(Number.isFinite(slippageOverride) && slippageOverride >= 0)) {
+    console.error(`REFUSED: slippageRate '${slipArg}' is not a non-negative number.`);
     process.exitCode = 1;
     return;
   }
@@ -135,7 +423,16 @@ async function main(): Promise<void> {
     console.log(`Grid: ${gridN} pre-registered configs (UNCHANGED). Universe: ${M} pairs from ${uni.dataVenue}.`);
     console.log(`DSR deflates against N=${nTotal} — every distinct configuration tried across ALL families, not just this grid.`);
     console.log(`Dev window ends ${new Date(prereg.holdoutFrom).toISOString().slice(0, 10)} — holdout SEALED.`);
-    console.log(`Costs: ${(btFor(family).costs.takerFeeRate * 100).toFixed(2)}% taker, ${(btFor(family).costs.slippageRate * 100).toFixed(2)}% slippage floor.`);
+    const modelled = btFor(family).costs;
+    const costs = slippageOverride === undefined ? undefined : { ...modelled, slippageRate: slippageOverride };
+    const effective = costs ?? modelled;
+    console.log(`Costs: ${(effective.takerFeeRate * 100).toFixed(2)}% taker, ${(effective.slippageRate * 100).toFixed(4)}% slippage floor.`);
+    if (costs) {
+      console.log(
+        `  *** SENSITIVITY RUN — slippage OVERRIDDEN from the modelled ${(modelled.slippageRate * 100).toFixed(4)}%. ***\n` +
+          `  §6.2 is UNCHANGED; this re-prices the same grid to size the damage, it does not amend the model.`,
+      );
+    }
     console.log(`Effective N from STRATEGY-return correlation via the Kish design effect. Spectral shown for contrast only — it measures\ndimensionality (the DSR's trial count), not sample size, and is not used here.\n`);
 
     console.log('params                                  | trades | effN | ρ̄     | net%   | PF    | maxDD% | Sharpe | DSR   | fees/gross');
@@ -149,7 +446,7 @@ async function main(): Promise<void> {
       const stratDaily = new Map<string, Map<number, number>>();
 
       for (const [sym, candles] of dev) {
-        const part = experiments.evaluateParts(family, params, candles);
+        const part = experiments.evaluateParts(family, params, candles, costs);
         returns.push(...part.returns);
         trades.push(...part.trades);
         candleCount += part.candleCount;
@@ -223,7 +520,19 @@ async function main(): Promise<void> {
       );
       console.log('  A null here rules out edges LARGER than this bar; it says nothing about smaller ones.');
     }
-    console.log('Holdout NOT evaluated: §7.2 burns it once.');
+    // §7.2 reporting for the config the verdict is about. Re-running one config
+    // over the universe is cheap next to the grid, and keeps the hot loop lean.
+    if (best) {
+      console.log(`\n=== §7.2 REGIME & YEAR BREAKDOWN — ${JSON.stringify(best.params)} ===`);
+      console.log(`Regime is classified from PRICE ONLY (200-day MA slope + drawdown), never from anything the strategy knows.`);
+      const parts = [...dev.entries()].map(([, candles]) => {
+        const part = experiments.evaluateParts(family, best.params, candles, costs);
+        return { returns: part.returns, trades: part.trades, regimes: regimeByDay(candles) };
+      });
+      reportSegments(parts);
+    }
+
+    console.log('\nHoldout NOT evaluated: §7.2 burns it once.');
   } finally {
     await app.close();
   }

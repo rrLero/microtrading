@@ -1,7 +1,9 @@
 # MicroTrading V1 — Evaluation Report
 
-**Status: DRAFT pending the soak only.** The holdout has not been evaluated and,
-on the reasoning in §1.1, **will not be** — it is recorded as sealed and
+**Status: DRAFT pending the soak only.** Revised 2026-08-24 — §1.1 (concentration)
+is new and decisive; §5 and §8 correct figures computed at a superseded cost
+basis. The holdout has not been evaluated and,
+on the reasoning in §1.2, **will not be** — it is recorded as sealed and
 unopened, not deferred. The remaining `[PENDING]` is §10, which fills when the
 soak completes 2026-09-04. Everything else is final.
 
@@ -19,16 +21,33 @@ Ratio*.
 families, **34 distinct configurations**, evaluated at a verified cost basis
 across a ten-pair universe.
 
-The final family (`donchian-breakout`) clears the §7.4 kill line on development
-data but fails two of the four conditions the project fixed in writing before
-any result existed:
+Two families (`donchian-breakout`, `sma-crossover`) clear the §7.4 kill line on
+aggregate development numbers. **Neither survives decomposition**: §1.1 shows
+roughly four-fifths of each result is a single calendar month.
 
-| §7.4 condition | Required | Observed (dev, pooled) | |
+Read against §7.4's conditions as the spec actually words them:
+
+| §7.4 condition | Required | donchian {55,20} | sma-crossover {10,200,30} |
 |---|---|---|---|
-| Profit factor after costs | ≥ 1.1 | 1.45 – 2.37 (6/6 configs) | PASS |
-| Minimum evidence | ≥ 100 trades | 215 raw / **59 effective** | **FAIL** |
-| Deflated Sharpe | > 0 at 95% | **0.82** | **FAIL** |
-| Holdout deflated Sharpe | > 0 at 95% | **not evaluated — sealed (§1.1)** | — |
+| Profit factor after costs | ≥ 1.1 | 2.37 (6/6 configs) — PASS | 1.99 (11/12) — PASS |
+| Minimum evidence | ≥ 100 trades, OOS + paper | 215 walk-forward OOS — PASS | 497 — PASS |
+| 3 consecutive months net negative | must not occur | **occurs** (to 2024-06) | **occurs** (to 2024-08) |
+| Holdout deflated Sharpe | > 0 at 95% | **not evaluated — sealed (§1.2)** | **sealed** |
+| Regime: flat in bear (§7.2) | required, long-only | 10.3% bear exposure — PASS | 16.2% — PASS |
+
+**Two corrections to earlier drafts of this table, recorded rather than quietly
+fixed.** (i) §7.4's evidence floor is *"100 trades of concatenated OOS + paper
+history"* — a raw count. Both families clear it and always did. Earlier drafts
+recorded a **59-effective-trades** failure, applying a correlation deflation that
+appears nowhere in the spec; it is a defensible statistic but was an unlogged
+post-hoc tightening of a frozen protocol, which is the very thing §7.5 exists to
+catch. It is reported in §3 as a *disclosure*, not as a gate. (ii) §7.4's
+deflated-Sharpe condition is measured **on the holdout**, and belongs to the gate
+to live pilot; the development DSR of 0.82 was never a gate and is not scored as
+one here.
+
+Neither correction changes the verdict. The verdict now rests on §1.1 instead,
+which is stronger evidence than either withdrawn claim.
 
 **This is the pre-registered success condition, not a disappointment.** §7.4,
 frozen before Phase 1 code was written:
@@ -40,7 +59,42 @@ frozen before Phase 1 code was written:
 
 Three families were evaluated, not two. The precondition is met and exceeded.
 
-### 1.1 Why the holdout stays sealed
+### 1.1 The result is one month
+
+**The finding that decides this report.** Aggregate profit factor cannot
+distinguish a persistent edge from one enormous month plus noise. Decomposed by
+calendar month over the pooled ten-pair walk-forward out-of-sample window:
+
+| | donchian {55,20} | sma-crossover {10,200,30} |
+|---|---|---|
+| Full period | +104.1% | +120.9% |
+| **Excluding 2024-11** | **+24.2%** | **+25.0%** |
+| 2024-11 alone | +64.4% | +76.8% |
+| Share of result from that month | **77%** | **79%** |
+| Negative months | 12 of 37 | 9 of 37 |
+
+November 2024 — the post-US-election crypto rally — carries roughly four-fifths
+of each family's entire three-year result. Strip it and the pooled ten-pair
+strategy returns **~24–25% cumulative**: about 7%/year across the full 37-month
+window, or ~11%/year measured only over the 25 months in which it traded at all
+(the first twelve produce no trades — walk-forward warm-up). A quarter to a
+third of all months are negative, and a third to a half of the months it actually
+traded. All of it against a minimum detectable Sharpe of 1.04 that the sample
+never reaches.
+
+**The advertised profit factors of 2.37 and 1.99 are, to a first approximation,
+descriptions of November 2024.** This is precisely the regime dependence REVIEW
+R8 warned about before any code was written — *"a 2-year backtest is one regime,
+long-only doubles down"* — and it was invisible in every aggregate metric the
+project computed for six weeks. The deflated Sharpe was the only aggregate that
+hinted at it (0.82 and 0.87, both short of 0.95), which is the argument for the
+DSR in miniature.
+
+It also disposes of the tempting response to a null: *"the edge is small but
+real, just under-powered."* An edge that is 77% one month is not a small
+persistent edge. It is one trade the market handed to every trend-follower alive.
+
+### 1.2 Why the holdout stays sealed
 
 §7.2 permits the holdout exactly one evaluation. This report spends it on
 nothing, and the decision is recorded here rather than left implicit.
@@ -137,20 +191,35 @@ the holdout without one.
 
 Every configuration tried, successful and unsuccessful:
 
-| Family | Configs | Best PF | Best Sharpe | Max trades | Outcome |
-|---|---|---|---|---|---|
-| rsi-reversion | 16 | 0.54 | −0.57 | 451 | Killed |
-| sma-crossover | 12 | 0.89 | −0.27 | 254 | Killed |
-| donchian-breakout | 6 | 1.75¹ | 0.91¹ | 135 | Does not clear gate |
-| **Total** | **34** | | | | |
+All three families, re-evaluated **2026-08-24** on the pooled ten-pair universe
+at the current 0.10% basis. Earlier drafts of this table carried single-pair
+figures computed at the retired 0.26%/Kraken basis, which understated two
+families; those numbers are superseded:
 
-¹ single-pair figures from the trial ledger; pooled universe figures in §1.
+| Family | Configs | Clear PF ≥1.1 | Best PF | Best Sharpe | Raw / effective trades | DSR | Outcome |
+|---|---|---|---|---|---|---|---|
+| rsi-reversion | 16 | **0/16** | 0.74 | −0.78 | 599 / 214 | 0.00 | **Killed** — well-powered negative |
+| sma-crossover | 12 | 11/12 | 1.99 | 0.89 | 497 / 144 | 0.87 | Clears aggregate; fails §1.1 |
+| donchian-breakout | 6 | 6/6 | 2.37 | 0.85 | 215 / 59 | 0.82 | Clears aggregate; fails §1.1 |
+| **Total** | **34** | | | | | | |
 
-**The full inventory is the point, not an annex.** Two of three families lost
-money outright. Reporting only donchian would be the file-drawer problem in
-miniature, and would make its numbers unreadable — the deflated Sharpe is
-computed against **N=34**, the real selection pool, precisely because donchian
-was not chosen from its own six configs in isolation.
+**The full inventory is the point, not an annex.** `rsi-reversion` is a clean,
+well-powered negative — 0 of 16 configurations clear the kill line, on 599 trades
+and 214 effective, so this is a real rejection rather than an under-powered
+shrug. Reporting only the survivors would be the file-drawer problem in
+miniature, and would make their numbers unreadable — the deflated Sharpe is
+computed against **N=34**, the real selection pool, precisely because no family
+was chosen from its own configs in isolation.
+
+**A process finding worth more than the result.** `sma-crossover` and
+`rsi-reversion` were last evaluated 2026-08-06 and were never re-run after D1,
+D2 and D3 changed the fee, the venue and the universe on 2026-08-12. For twelve
+days the project's recorded state described two families by numbers computed at a
+cost basis it had already repudiated — and `sma-crossover`, believed dead at
+PF 0.89, in fact clears the kill line at PF 1.99 and carries 2.4× donchian's
+effective evidence. A pre-registration protects against changing the question
+after seeing the answer; it offers no protection at all against failing to re-ask
+it after changing the costs.
 
 **Budget discipline:** ≤20 configs per family (§7.1), never exceeded.
 MinBTL guidance (Bailey et al. 2014) suggests ≤45 independent configurations for
@@ -190,6 +259,12 @@ select among.
   OOS result.
 - **True out-of-sample is live trading only.** The paper soak is the only
   genuinely forward evidence and is reported separately (§10).
+- **Regime and calendar segmentation (§7.2, added 2026-08-24).** Results are
+  broken out by regime segment (200-day MA slope × drawdown state, classified
+  from price only — never from anything the strategy knows) and by calendar year
+  and month, each with exposure, trades, net and PF. This is what surfaced §1.1;
+  it was the missing piece that let an aggregate PF of 2.37 stand unexamined.
+  `packages/core/src/regime.ts`, printed by `run-universe`.
 
 ---
 
@@ -220,10 +295,23 @@ At Kraken's 0.80%, **0/6 configs survive**. At Bybit EU's 0.10%, 6/6 do.
 the observed half-spread. For retail-size systematic trading, venue selection is
 a larger lever than strategy design, and it is checkable in an afternoon.
 
-**Slippage model validated per pair.** §6.2 charges max(half-spread, 0.03%).
-Sampled hourly on the execution venue: all 10 pairs under the floor, worst
-ADA/USDC at 0.0270% — **90% of it**. Model is pessimistic, but not by much on
-the thinner alts.
+**Slippage model NO LONGER validated — §6.3 axis 2 FAILS as of 2026-08-24.**
+§6.2 charges max(half-spread, 0.03%). Hourly execution-venue sampling now stands
+at n=2283: median 0.0137%, **p90 0.0324% — above the modelled floor** — max
+0.1807%, with 278 samples (12.2%) in breach across seven of ten pairs. It passed
+at every earlier reading (p90 0.0281% at n=1583 on 08-20); a liquidity regime
+changed on 2026-08-21 and daily breach rates went ~5% to 22–35%. The sampler was
+independently verified against a raw host-side REST read on 2026-08-24 (five
+exact matches of ten, differences symmetric in direction), so the deterioration
+is market structure, not instrumentation.
+
+**It changes nothing, and that is itself the finding.** Re-pricing the whole grid
+at the observed p90 moves donchian's best PF 2.37 → 2.37 and Sharpe 0.85 → 0.84;
+break-even sits near **1.6% slippage, ~50× the modelled rate**. `fees/gross` is
+0.03: these families trade rarely and hold long, so a per-trade cost constant
+barely touches them. The failure is recorded as a failure rather than modelled
+away — moving the constant until the gate passes is how the 0.26% fee error
+survived Phase 0.
 
 **Capacity:** not a binding constraint at this size. ~1,000 USDC per position
 against multi-million daily volumes makes market impact negligible under the
@@ -241,9 +329,14 @@ costs.
 
 - **Complexity:** two parameters. No machine learning, no feature selection, no
   black box. The curse of dimensionality is avoided by not inviting it.
-- **Structural change:** the dev window spans the entire 2022 bear market; §7.2
-  requires a long-only strategy to demonstrate it goes flat in bear segments, and
-  being flat for months is recorded as success rather than failure.
+- **Structural change — now measured, not asserted.** §7.2 requires a long-only
+  strategy to demonstrate it goes flat in bear segments. Both surviving families
+  **pass**: donchian holds a position on 10.3% of bear pair-days (63 trades,
+  +11.8%, PF 4.91), sma-crossover 16.2% (143 trades, +28.6%, PF 4.31). They do
+  stand aside, and what little they trade there is profitable. This is a genuine
+  positive result and it is not sufficient: standing aside correctly in bear
+  markets establishes no edge when four-fifths of the profit is one bull month
+  (§1.1).
 - **No live-model tweaking:** the deployed configuration was never changed after
   seeing results. `{55,20}` is the best pooled config; `{40,10}` is what runs.
   Switching would have been post-hoc selection and is documented as declined.
@@ -288,38 +381,46 @@ talking itself into an answer. The sealed holdout is the remaining control.
   computed.
 - The soak has produced one strategy round trip (two fills). Live evidence is
   negligible.
-- **The 0.03% slippage floor is conservative at p90, but not per-sample.**
-  Hourly Bybit half-spread sampling across all 10 universe pairs (n=1053 as of
-  2026-08-16) gives median 0.0114% and p90 0.0278% — under the floor, which is
-  why §6.3 axis 2 passes. But **62 samples (5.9%) exceed it**, concentrated
-  entirely in the three thinnest pairs: AVAX 24/103 (max 0.044%), ADA 20/103
-  (max 0.057%), ARB 18/103 (max 0.061%). The rate is a steady ~6%/day since
-  sampling began 2026-08-12 and is not clustered by hour, so it is a standing
-  property of those books rather than a transient. BTC/USDC — the only pair
-  actually traded — has zero breaches (max 0.0074%), so the live paper loop's
-  fill model remains pessimistic; the bias lands on the *pooled evaluation*,
-  where the model under-charges those three pairs roughly 6% of the time.
-  Direction flatters the reported PF. Magnitude is bounded by the observed
-  excess (≤0.031 pp over the floor, on ~6% of fills on 3 of 10 pairs), small
-  against the 0.20% round-trip taker fee that dominates cost. Left uncorrected:
-  a per-pair slippage model is a cost-basis change, and D3 froze the spec. Noted
-  here because disclosing it is cheap precisely when the verdict is already null
-  — which is the point at which such things are usually not disclosed.
+- **The 0.03% slippage floor is now breached at p90 — §6.3 axis 2 FAILS.**
+  Full numbers and the sensitivity that shows it immaterial are in §8. Left
+  uncorrected deliberately: raising the modelled rate is a §6.2 cost-basis change
+  against a frozen spec, for a correction worth 0.01 Sharpe, and amending a model
+  to make a failing gate pass is the exact pattern §7.5 exists to prevent.
+  Disclosed here because disclosure is cheap precisely when the verdict is
+  already null — which is the point at which such things usually are not
+  disclosed.
+- **An unlogged protocol tightening was in force for weeks.** A 59-effective-
+  trades bar, absent from §7.4, was recorded in project state as though it were
+  the spec's requirement and blocked progress accordingly (§1). It was
+  conservative in direction, which is why it went unchallenged — but a
+  pre-registration is not protected only against changes that flatter. Corrected
+  2026-08-24; noted here because the deviation register would otherwise show
+  three deviations when the true count of unrecorded protocol drift is four.
 
 ---
 
 ## 12. Conclusion
 
 `[PENDING — blocked on §10 only; soak completes 2026-09-04. Not blocked on the
-holdout, which is sealed by decision per §1.1.]`
+holdout, which is sealed by decision per §1.2.]`
 
 ---
 
 ## Appendix A — Reproducing every number
 
 ```bash
+# §1, §1.1, §5, §7, §9 — pooled evaluation, regime/year/month tables,
+# concentration diagnostic and the §7.4 month-run scan, per family:
 pnpm --filter @microtrading/agent run-universe -- donchian-breakout
+pnpm --filter @microtrading/agent run-universe -- sma-crossover
+pnpm --filter @microtrading/agent run-universe -- rsi-reversion
+
+# §8 — slippage sensitivity: same grid, same window, one varied constant.
+# Records nothing, so it consumes no trial budget (§7.1).
+pnpm --filter @microtrading/agent run-universe -- donchian-breakout 0.000324
 pnpm --filter @microtrading/agent cost-sensitivity -- donchian-breakout '{"entryLookback":40,"exitLookback":10}'
+
+# §8, §11 — cost calibration by §6.3 axis
 pnpm --filter @microtrading/agent calibrate-report
 ```
 

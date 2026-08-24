@@ -448,3 +448,252 @@ probe work uncovered a silent mirror bug.
 - AGENTS.md `.next` warning widened to cover `pnpm test`, not just `pnpm build`
   — turbo pulls `dashboard:build` into the test task, and running it with the
   dev server up served 500s again today.
+
+## 2026-08-24 — §6.3 axis 2 FAILS; slippage sensitivity says it does not matter
+
+- **`calibrate-report`: slippage axis crossed from PASS to FAIL.** Modelled
+  0.0300% vs observed p90 half-spread **0.0324%** (n=2283). It passed at every
+  earlier reading (0.0281% at n=1583 on 08-20), so this is a genuine crossing,
+  not rounding. Axes 1 (fees, 0.100% = published) and 3 (mechanics, 24 pairs,
+  0 mirror errors) still PASS; axis 4 still NOT EVALUABLE — 10 pairs excluded
+  at the superseded 0.260% basis, 0 strategy fills mirrored at the current one.
+- **A liquidity regime changed on 2026-08-21.** Daily breach rate went ~5%
+  (08-13 → 08-18) to 24% / 35% / 27% / 22% (08-21 → 08-24). The breaching set
+  widened from four thin pairs to seven: AVAX 71/226, ADA 70/226, ARB 66/226
+  (max 0.1807%, 6× the model), SUI 31/226, DOGE 30/226, SOL 8/226, XRP 2/226.
+  Clean: BTC, ETH, MNT.
+- **Ruled out the benign explanation.** Tick quantisation would predict the
+  opposite: those pairs rallied 18–30% over the same window, which makes a fixed
+  tick a *smaller* percentage of mid. Average half-spread widened anyway
+  (DOGE 0.0112% → 0.0303%, SUI 0.0151% → 0.0282%), i.e. the books genuinely
+  thinned against that tailwind. Residual caveat: the agent container also
+  restarted ~08-21 after the outage, so an instrumentation artifact is not
+  formally excluded — but a bug would have to widen seven pairs systematically
+  and leave BTC/ETH/MNT at exactly zero.
+- **Confound TESTED and CLEARED (same day).** Sampled all ten pairs from the
+  host via raw Bybit v5 REST (`/v5/market/tickers`, `bid1Price`/`ask1Price`) —
+  no ccxt, no container, different process and network path — 5 rounds over 90s
+  at 13:26–13:28Z, using the sampler's own definition, (ask−bid)/2/mid. Against
+  the container's 13:07Z sample, 19 minutes earlier:
+
+  | pair | container 13:07 | host 13:26 | ratio |
+  |---|---|---|---|
+  | BTC | 0.0001% | 0.0001% | 0.63 |
+  | ETH | 0.0002% | 0.0002% | 1.00 |
+  | XRP | 0.0165% | 0.0099% | 0.60 |
+  | SOL | 0.0260% | 0.0156% | 0.60 |
+  | ADA | 0.0222% | 0.0222% | 1.00 |
+  | DOGE | 0.0270% | 0.0270% | 1.00 |
+  | ARB | 0.0252% | 0.0251% | 1.00 |
+  | SUI | 0.0120% | 0.0240% | 2.00 |
+  | MNT | 0.0093% | 0.0093% | 1.00 |
+  | AVAX | 0.0132% | 0.0264% | 2.00 |
+
+  Five exact matches; the five differences are symmetric in direction (two
+  host-HIGHER, three host-lower) and land on exact 1-tick/2-tick ratios — book
+  movement over the 19-minute gap, not systematic inflation. A sampler bug
+  would have to bias one direction; this biases neither. **The container reads
+  the same book the host does. The measurement is sound and the liquidity
+  deterioration is real.** Axis 2's FAIL stands on its merits.
+- Structural note worth keeping: ADA's minimum possible half-spread at current
+  price is one tick = 0.0222%, i.e. 74% of the 0.03% model, so any two-tick book
+  is an automatic breach at 0.0444%. Its breach rate is therefore the fraction
+  of time the book is wider than minimum tick — which went 21.8% → 51.4%. That
+  is genuine deterioration, not a price artifact, and the same reasoning covers
+  the other thin pairs.
+- **BTC/USDC — the only pair actually traded — still has ZERO breaches**
+  (n=249, max 0.0074%). The live paper loop's fill model remains pessimistic.
+  The failure bites the pooled 10-pair evaluation, not the soak.
+- **Code change: `run-universe` now accepts an optional slippage override.**
+  `evaluateParts` already took a `costsOverride` (added for `cost-sensitivity`);
+  `run-universe` simply never passed one. Same contract as `cost-sensitivity`:
+  unchanged grid, unchanged dev window, one varied input constant, nothing
+  recorded, no new selection opportunity, so N is unaffected (§7.1). The banner
+  prints a SENSITIVITY RUN warning when the override is active. **§6.2 is
+  unchanged** — this measures the damage, it does not amend the model.
+  Typecheck clean, agent build clean; baseline run reproduces the 08-12 numbers
+  exactly (6/6, best {55,20} PF 2.37, 59 effective, DSR 0.82).
+- **Result: the cost model is nowhere near binding.** Re-pricing the grid at
+  the observed p90 and beyond, best config {entryLookback 55, exitLookback 20}:
+
+  | slippage | PF | Sharpe | DSR | configs ≥ PF 1.1 |
+  |---|---|---|---|---|
+  | 0.0300% (modelled) | 2.37 | 0.85 | 0.82 | 6/6 |
+  | 0.0324% (observed p90) | 2.37 | 0.84 | 0.82 | 6/6 |
+  | 0.0500% | 2.34 | 0.84 | 0.81 | 6/6 |
+  | 0.0800% | 2.30 | 0.82 | 0.80 | 6/6 |
+  | 0.3000% | 2.02 | — | 0.67 | 6/6 |
+  | 0.6000% | 1.71 | — | 0.46 | 5/6 |
+  | 1.0000% | 1.41 | — | 0.21 | 2/6 |
+  | 1.5000% | 1.13 | — | 0.04 | 2/6 |
+
+  Break-even (PF 1.1) sits near **1.6% slippage — ~50× the modelled rate and
+  ~30× the observed p90.** Correcting the model to the p90 costs 0.00 PF and
+  0.01 Sharpe. The reason is visible in `fees/gross` = 0.03: this family trades
+  rarely and holds long, so a per-trade cost constant barely touches it.
+- **Verdict unchanged, and for reasons slippage cannot reach.** Still NOT a
+  pass: 59 effective trades of the 100 §7.4 requires, DSR 0.82 of 0.95, and
+  observed Sharpe 0.85 below the minimum detectable 1.04. Tightening the cost
+  model would not rescue it; neither does the failure sink it. §6.3 axis 2 is a
+  real gate failure that must be recorded as such, but it is not the reason the
+  strategy has not earned the holdout.
+- Holdout NOT evaluated and remains SEALED. No spec amendment proposed.
+
+## 2026-08-24 (b) — Read §7.4 properly; re-evaluated the two dormant families
+
+- **Correction: §7.4's evidence floor was already MET, and has been for weeks.**
+  The spec says "no go/no-go judgment on fewer than **100 trades** of
+  concatenated OOS + paper history." Donchian's best config has **215
+  walk-forward OOS trades** (verified: `evaluateParts` builds windows and counts
+  only trades entered inside the test window) plus 4 paper fills. The
+  "59 effective" figure is a **tool-side correlation deflation that appears
+  nowhere in the spec.** AGENTS.md had recorded it as though it were §7.4's
+  requirement. It is a defensible methodological addition — correlated trades
+  do carry less information — but it is an unlogged post-hoc tightening of a
+  frozen protocol, which is precisely the class of change §7.5 exists to record.
+  **Decide it explicitly: log as D4 or drop it.** Until then it is an invisible
+  blocker.
+- **Correction: the §7.4 kill criteria do not fire on donchian-breakout.**
+  PF 2.37 ≥ 1.1 over ≥100 trades; realized DD nowhere near 2× walk-forward DD;
+  no 3 consecutive negative months (the account is 17 days old). The strategy is
+  not dead and was never close to it.
+- **Correction: dev DSR 0.82 is not a gate.** §7.4 requires "deflated Sharpe >0
+  at 95% confidence **on the holdout**", and that clause belongs to the *gate to
+  live pilot* — which V1 does not pursue, real money being a §1.2 non-goal.
+- **Correction: §5.4 is explicitly "V2 preview (not built now)"** and §5.3 pins
+  V1 to "max 1 open position (BTC only)". A concurrent-position build would be
+  a spec amendment and scope-widening of exactly the kind D3 froze. Withdrawn.
+- **The actual blocker was a stale evaluation.** `rsi-reversion` and
+  `sma-crossover` are both pre-registered, but their last trials are dated
+  **2026-08-06** — before D1/D2/D3. Every number they held was computed at the
+  retired 0.26% Kraken single-pair basis. Neither had ever been run pooled at
+  0.10% on the universe. Re-ran both (read-only; `run-universe` records nothing,
+  so no trial budget consumed, no new selection opportunity):
+
+  | family | configs ≥ PF 1.1 | best | PF | raw | **effective** | DSR |
+  |---|---|---|---|---|---|---|
+  | rsi-reversion | **0/16** | {25,50,7,30} | 0.74 | 599 | 214 | 0.00 |
+  | sma-crossover | **11/12** | {fast 10, slow 200, trendSma4h 30} | 1.99 | 497 | **144** | 0.87 |
+  | donchian-breakout | 6/6 | {55,20} | 2.37 | 215 | 59 | 0.82 |
+
+- **`rsi-reversion` is honestly dead** — 0/16 clear the kill line, best PF 0.74,
+  Sharpe −0.78, net negative on every config, and it MEETS the evidence floor on
+  both raw and effective counts (599/214). That is a clean, well-powered
+  negative result and it is one of the two families §7.4's project stopping rule
+  asks for.
+- **`sma-crossover` clears the effective bar donchian could not**: 144 effective
+  trades ≥ 100, because it trades 2.3× more often. It is the first configuration
+  in this project to satisfy §7.4's minimum evidence under BOTH the spec's
+  literal reading and the stricter effective-count reading.
+- Slippage sensitivity on sma-crossover (higher turnover, `fees/gross` 0.06 vs
+  donchian's 0.03, so more cost-exposed): at the observed p90 0.0324% the best
+  config is unchanged at PF 1.99, DSR 0.86. The grid is more fragile further out
+  (11/12 → 8/12 clearing at 0.10% slippage) but the best config holds to 0.20%.
+  §6.3 axis 2's failure remains immaterial to the verdict here too.
+- **§7.4's project stopping rule does NOT fire.** It triggers when two families
+  evaluated honestly yield nothing passing; three are now evaluated at the
+  current basis and two clear the kill line.
+- Caveats, stated plainly: sma-crossover's Sharpe 0.89 is still below its
+  minimum detectable 1.04, so this sample cannot *certify* an edge either way —
+  it can only fail to reject one. And picking sma-crossover after seeing dev
+  results is a selection decision across families; the DSR's N=34 deflation
+  spans all families and is the correct handling, already applied.
+- Holdout untouched, still SEALED. No spec amendment made or proposed.
+
+## 2026-08-24 (c) — §7.2 regime reporting built (closes REVIEW R8)
+
+- **New: `packages/core/src/regime.ts`** — pure price-only regime segmentation.
+  200-day MA slope (measured over a 20-day lookback, because a 200-day mean
+  compared day-over-day is mostly rounding noise and flickers across the sign
+  boundary) × drawdown from running peak, threshold 20%. Four segments: `bull`,
+  `topping`, `rebound`, `bear`. Classified from PRICE ONLY — never from anything
+  the strategy knows, or a strategy could define its own favourable weather.
+  Warm-up days carry `label: null` and are excluded from every bucket rather
+  than folded into one; otherwise the first ~7 months of each pair get silently
+  attributed to whatever label happens to be the default.
+  8 unit tests (`packages/core/test/regime.test.ts`), core suite now 36/36.
+- **`run-universe` now prints the §7.2 tables** for the config the verdict is
+  about: per regime segment and per calendar year, each with pair-days,
+  **exposure %**, trades, net% and PF — plus an explicit long-only bear verdict.
+  Exposure is counted in pair-days (a day with any open position on a pair
+  counts once for that pair). Trades are attributed to the regime they were
+  ENTERED in; attributing by exit would credit decisions to information they did
+  not have.
+- **Both surviving families PASS the §7.2 bear test.** They stand aside when the
+  trend is against them, and the little they do trade there is profitable:
+
+  | family | bear exposure | bear trades | bear net% | bear PF |
+  |---|---|---|---|---|
+  | donchian-breakout {55,20} | 10.3% | 63 | +11.8% | 4.91 |
+  | sma-crossover {10,200,30} | 16.2% | 143 | +28.6% | 4.31 |
+
+- **But the calendar-year tables are the real finding, and R8 called it exactly.**
+  Both families are carried by a single year and both are NEGATIVE in the most
+  recent one:
+
+  | year | donchian net% / PF | sma-crossover net% / PF |
+  |---|---|---|
+  | 2022 | 0.0 / n/a (no trades) | 0.0 / n/a (no trades) |
+  | 2023 | +18.8 / 3.64 | +25.5 / 3.52 |
+  | 2024 | **+76.0 / 2.96** | **+96.9 / 2.84** |
+  | 2025 (to 08-01) | **−2.4 / 0.88** | **−10.6 / 0.70** |
+
+  The aggregate PF of ~2 that both families advertise is substantially one
+  calendar year. 2025 — the dev period closest to the holdout and to live
+  conditions — is net negative with PF below 1 for both. This is precisely the
+  regime dependence R8 warned about, and it was invisible in the aggregate.
+- **Action this implies: do NOT take either family to the holdout yet.** The
+  holdout is the most recent 12 months and burns once; walking into it off a
+  result that is one good year plus a deteriorating one is how you spend the
+  only clean sample you have. Check first whether §7.4's third kill criterion —
+  "3 consecutive calendar months net negative" — fires inside 2025. That needs
+  monthly granularity, which the current tables do not have; it is the obvious
+  next piece of reporting.
+- Interpretation caveat worth keeping: drawdown is measured from the RUNNING
+  peak, so the 2021 all-time high keeps most of 2023–24 classified deep-drawdown.
+  That is why `rebound` (3630 pair-days) swallows the sample and `bull` (1530) is
+  small. It is a faithful description — those prices genuinely were far below the
+  prior peak — but the bull/rebound split should not be read as "the market was
+  not rising". The bear test is unaffected: `bear` additionally requires the MA
+  slope to be negative.
+- No container redeploy: the change is a new core module plus CLI reporting,
+  neither of which the trading loop calls. Redeploying would restart the soak
+  for nothing.
+
+## 2026-08-24 (d) — Monthly granularity: the result is ONE month
+
+- Added the calendar-month table, §7.4's "3 consecutive months net negative"
+  scan, and a **concentration diagnostic** to `run-universe`. Months are walked
+  over a continuous calendar range so a data gap cannot silently join two
+  negative stretches into one apparent run; a no-data month breaks a run (an
+  unknown month is not evidence of a negative one) and so does a flat month
+  (§7.2 is explicit that flat is not failure).
+- **The finding that matters. Both surviving families are one month.**
+
+  | family | full period | ex-2024-11 | 2024-11 alone | share | negative months |
+  |---|---|---|---|---|---|
+  | donchian-breakout {55,20} | +104.0% | **+24.1%** | +64.4% | **77%** | 12/25 |
+  | sma-crossover {10,200,30} | +120.9% | **+25.0%** | +76.8% | **79%** | 9/25 |
+
+  Remove November 2024 — the post-US-election crypto rally — and three years of
+  pooled, 10-pair, walk-forward out-of-sample trading returns ~24-25% total,
+  roughly 8-9%/year, with 36-48% of months negative. The advertised PF of 2.37
+  and 1.99 are, to a first approximation, descriptions of that one month.
+  This is what DSR 0.82 / 0.87 was already trying to say, and what the aggregate
+  hid completely. REVIEW R8 predicted exactly this failure mode.
+- **§7.4's third kill criterion fires for both** — donchian a 3-month negative
+  run ending 2024-06, sma-crossover ending 2024-08. Calibration note, stated so
+  nobody over-reads it: over 25-37 active months a run of exactly 3 negatives is
+  unremarkable for any noisy series, and both hit exactly 3, never more. The
+  criterion reads like a live-account circuit-breaker that happens to be
+  evaluable on a dev window, not like a considered dev-window test. **The
+  concentration finding is the real evidence; the kill trigger is incidental.**
+  §7.4 scopes kill criteria to "OOS/paper" and these ARE pooled walk-forward OOS
+  months, so it is legitimately evaluable — but whether a dev-window run kills a
+  family is a reading a human must make. The tool says so and does not decide.
+- Both families still PASS the §7.2 long-only bear test (10.3% and 16.2% bear
+  exposure). That result stands and is genuinely good — they do stand aside.
+  It is simply not sufficient: standing aside correctly in bear markets does not
+  establish an edge if the entire profit came from one month of one bull run.
+- Core suite 36/36, agent typecheck clean. No container redeploy (CLI reporting
+  and a new core module; the trading loop calls neither).
