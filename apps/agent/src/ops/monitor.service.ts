@@ -36,6 +36,7 @@ export class MonitorService {
     if (!this.enabled()) return;
     try {
       await this.healthChecks();
+      await this.deadMansPing();
     } catch (err) {
       // DB down (or similar) — the checks themselves can't run, but the push
       // channel doesn't need the DB. Alert instead of dying silently.
@@ -45,6 +46,24 @@ export class MonitorService {
         `Health checks failed: ${String(err).slice(0, 200)}. Is Postgres/Docker running?`,
         'high',
       );
+    }
+  }
+
+  /**
+   * External dead-man's switch (SPEC §8 "process heartbeat"). Every alert in
+   * this file is sent BY this process, so a dead host — the 47h outage of
+   * 2026-08-18 — produces silence, not an alert; a human noticed. A service
+   * that alerts when pings STOP (healthchecks.io or any equivalent) closes
+   * that gap. Gated on HEALTHCHECK_PING_URL; unset = no-op. Best effort: a
+   * failed ping is logged and never thrown.
+   */
+  private async deadMansPing(): Promise<void> {
+    const url = this.config.get<string>('HEALTHCHECK_PING_URL');
+    if (!url) return;
+    try {
+      await fetch(url, { method: 'GET', signal: AbortSignal.timeout(10_000) });
+    } catch (err) {
+      this.log.warn(`dead-man's ping failed: ${String(err).slice(0, 120)}`);
     }
   }
 

@@ -1,10 +1,11 @@
 # MicroTrading — AI Trading Agent Specification
 
-**Version:** 0.3 (all REVIEW.md questions R1–R12 resolved)
-**Date:** 2026-08-02
+**Version:** 0.3.1 (v0.3 frozen 2026-08-02; §7.5 deviation/clarification log and Appendix D errata appended 2026-08-25 — no frozen section was edited)
+**Date:** 2026-08-02 (frozen text) · 2026-08-25 (last appended entry)
 **Author:** Roman Levchenko (with Claude)
-**Status:** Ready for Phase 0 implementation
-**Companion docs:** REVIEW.md (the adversarial review this version answers)
+**Status:** Phase 3 soak in progress (ends 2026-09-06, §7.5 C6); Phase 4 decided (`docs/PHASE4-PREREG.md`); holdout sealed by decision (REPORT §1.2)
+**Companion docs:** REVIEW.md (the adversarial review this version answers) · docs/STRESS-TEST-2026-08-25.md (second review, against the ledger) · docs/REPORT.md
+**Reading rule:** sections 1–10 are the frozen v0.3 text and contain stale statements. Appendix D lists every one with its current truth. §7.5 is the only section that grows.
 
 ---
 
@@ -467,6 +468,99 @@ answer is §7.4's project stopping rule, not another widening.
   must cover each pair (§2.2). The 0.03% slippage floor is verified conservative
   for BTC only.
 
+#### D0 — 2026-08-06 (logged 2026-08-25) — third family registered after the §7.4 stopping rule fired
+
+Backdated entry. Found by `docs/STRESS-TEST-2026-08-25.md` A1 against the
+`experiments` ledger, nineteen days after the fact. D3's "no D4" commitment is
+kept: this is not a new widening, it is the first one, which predates the log.
+
+- **What the ledger shows (UTC):** sma-crossover pre-registered 22:54:56, its
+  12 trials complete by ~22:56; rsi-reversion pre-registered 22:58:21, its 16
+  trials complete by ~22:59; **donchian-breakout pre-registered 23:03:43** —
+  after both prior families' results were on screen. §10 names SMA and RSI as
+  the starter strategies; donchian is not in the frozen text at all.
+- **The code and the grid say why.** `donchian-breakout.ts`: *"the structural
+  answer to the cost drag that killed both 1h families."*
+  `experiments/donchian-breakout.json`: *"per §7.4 the project stopping rule
+  already triggered once."* §7.4 says: after two families evaluated honestly
+  nothing passes → stop. A third was registered instead.
+- **Timing:** decided AFTER seeing two families fail. Result-driven family
+  choice, the same pattern D2 and D3 later record — and the first instance.
+- **Trial accounting:** N=34 counts donchian's 6 configs alongside the 28 that
+  preceded it, so the DSR already prices this selection. The *numbers* were
+  never wrong; the *register* was incomplete and REPORT §1/§4 described the
+  choice as ex-ante. Both are corrected in REPORT.
+- **Note on §7.1.1:** "committed to git before any backtest" could not have
+  held for any family — the repository was initialised 2026-08-11 14:16
+  (`262eb78`); all three registrations carry `git_sha = 'no-git'`. The journal
+  half of the rule held (11–15 s before each first trial). The git half was met
+  retroactively on 08-11.
+
+#### Clarifications — readings of frozen text that turned out not to be evaluable as written
+
+A clarification does not change the question; it records how an ambiguous or
+unevaluable sentence was read, and when. It is logged for the same reason a
+deviation is: an unlogged reading in force for weeks is indistinguishable, to a
+later reader, from a rule that was quietly tightened or loosened.
+
+- **C1 — 2026-08-11 (logged 2026-08-25) — §6.3 read as four axes.** §6.3 asks
+  for modelled costs within 30% of *demo fills*; Bybit demo fills at last price
+  with zero spread and charges ~0.05%, so the sentence cannot be evaluated.
+  `calibrate-report` reads it as four independent axes — fees vs published
+  schedule, slippage vs sampled book, mechanics via demo, fill-model-vs-venue —
+  and reports each. WORKLOG 08-11 flagged this as "a spec decision, not a code
+  one"; the decision is recorded here. Axis 4 is structurally unclosable on a
+  zero-spread demo and is reported NOT EVALUABLE, never PASS.
+- **C2 — 2026-08-12 → withdrawn 2026-08-24 — §7.4 "100 trades" read as effective
+  trades.** D3 added "every report prints effective N alongside raw N" to §2.2
+  without saying which count gates §7.4. For twelve days project state treated
+  59 effective as a failing floor. **Read as: raw trades gate; effective N is a
+  disclosure (REPORT §3).** Bailey & López de Prado's DSR already absorbs
+  sample-size and trial-count effects; a second deflation on top of it was a
+  post-hoc tightening.
+- **C3 — 2026-08-25 — §7.4 kill criteria, scoped.** (i) *"3 consecutive
+  calendar months net negative"* is read on the pooled concatenated OOS + paper
+  series (pooled is the verdict, §2.2), calendar months, a no-data or flat month
+  breaks a run, and a fire inside the development window kills the family. Both
+  surviving families fire (donchian to 2024-06, sma-crossover to 2024-08) and
+  are therefore killed under §7.4, independently of REPORT §1.1's concentration
+  finding — which remains the stronger evidence. (ii) *"realized max DD > 2×
+  walk-forward max DD"* is read as paper-account drawdown since the account
+  opened against the deployed config's pooled walk-forward OOS max DD.
+- **C4 — 2026-08-25 — holdout boundary pinned; one evaluation total.** §7.2's
+  "most recent 12 months" was implemented as *12 months before each family's
+  registration*, so a family registered later would receive a later boundary
+  whose development window overlaps every earlier family's sealed holdout.
+  `HOLDOUT_FROM` is now the constant **2025-08-01 00:00 UTC** for every family,
+  present and future. "One evaluation, at the end, per strategy family" is read
+  as **one evaluation of the holdout, total** — three looks at the same twelve
+  months are three evaluations. Data after 2026-08-01 is neither development
+  nor holdout; it is the soak, and belongs to §10.
+- **C5 — 2026-08-25 — total trial budget.** §7.1 caps configurations per family
+  at 20 and never caps families, so N was unbounded; the stopping rule, the only
+  other cap, was walked past once (D0). **N across all families ≤ 45** (MinBTL,
+  Bailey et al. 2014, for ~5 years). Enforced in `preregister`. Registering a
+  new family is a logged deviation.
+- **C6 — 2026-08-25 — the soak's end.** §10 says "≥4 weeks unattended" and is
+  silent on outages. Decided before the window closes so it cannot be chosen
+  after seeing the last week: **the soak is 28 calendar days with ≥95% of hourly
+  ticks observed; an outage extends the window by its own length.** Start
+  2026-08-07 00:02Z, one outage of 47.4 h (08-18 21:07Z → 08-20 20:30Z), so the
+  soak ends at the first tick after 2026-09-05 23:26Z — **2026-09-06 00:02Z**.
+  Any "N days of soak" figure is net of the outage.
+- **C7 — 2026-08-25 — §10 definition of done is not amended.** Its clauses
+  ("1h candles", "both starter strategies", "holdout report") describe a system
+  and a plan that D0–D3 and REPORT §1.2 have since changed. Amending §10 would
+  be a D4. Instead REPORT §10 reconciles the definition of done clause by
+  clause and states which are unmet and why.
+- **C8 — 2026-08-25 — §7.1.3 "every backtest run is logged".** `run-universe`
+  recorded nothing until 2026-08-25 (it "consumes no trial budget", which is
+  correct, but logging and counting are different things). It now writes a
+  `kind='evaluation'` row per run — params, git SHA, cost basis, sensitivity
+  flag, universe, headline metrics — excluded from N. REPORT numbers computed
+  before this date are reproducible from Appendix A but were not recorded when
+  produced; the stress test says so.
+
 ---
 
 ## 8. Operations *(resolves R10)*
@@ -572,3 +666,31 @@ paper trading, maker/taker, signal, regime, MiCA — see v0.2 in git history; pl
 | 1d | 2.000% | 7.69× |
 
 *(Feasibility argument only — forbidden for risk sizing, §2.3/§5.1.)*
+
+## Appendix D — Errata *(added 2026-08-25; the frozen text above is not edited)*
+
+Every statement in §§1–10 known to be stale, with its current truth. A reader
+who hits a sentence in the frozen text that contradicts the codebase should
+find it here; if it is not here, that is a new erratum to add.
+
+| Where | Frozen text says | Current truth | Since |
+|---|---|---|---|
+| Header | "Ready for Phase 0 implementation" | Phase 3 soak; Phase 4 decided; holdout sealed by decision | 2026-08-07 / 08-16 / 08-25 |
+| §2.1 | Kraken is the live target; "Kraken supports [native stops]" (§5.2); "Kraken lists BTC/USDC" (§2.2) | Bybit EU is both data and execution venue; Kraken is used for nothing | D2, D3 (2026-08-12) |
+| §2.3, App. C | round-trip cost ≈0.26–0.32%, table divides by 0.26% | 2 × 0.10% + 2 × 0.03% = 0.26% by coincidence of the corrected numbers, but the components are different: fee 0.10% (was an unverified 0.26%), slippage floor 0.03% | D1, D2 |
+| §2.4 | ccxt backfill + Kraken bulk OHLCVT archives; "backfilled to 2019"; "Stored in SQLite" | Bybit REST backfill; BTC history from 2021-12-09, ten-pair universe from 2021-12 to 2023-07; Postgres 16 in Docker via Drizzle | D3; Phase 0 |
+| §2.5 | "news/sentiment features" | Dropped from Phase 4 scope — no licensed source, no consumer on a 10–25-trade/yr strategy; see `docs/PHASE4-PREREG.md` | 2026-08-25 |
+| §3 diagram | "Kraken public WS (1h/4h candles)" | Bybit REST, hourly at :02, closed candles only; 4h derived locally | D3 |
+| §3.5, §8 | restart reconciliation "documented, tested"; mismatch → halt + alert | Interface only. Paper state is DB-persisted (nothing to reconcile); the demo mirror is never reconciled. Untested. | — |
+| §4.1.4 | kill switch "tested as part of CI" | No CI exists. Drilled manually 2026-08-09/10; next due ~09-09 | — |
+| §5.2, §5.3 | native exchange stop before an entry is "complete" | No stop order is placed on demo; the paper stop is simulated per candle in the loop. Untested on any venue | — |
+| §5.3 | weekly −6% cutoff, human review to resume | Not implemented; `RiskParams` has the daily cutoff only | — |
+| §6.2 | maker fill model, partial fills | Not built; V1 is taker-only (the stated default) | — |
+| §6.3 | ">30% relative from demo fills" | Not evaluable on a zero-spread demo; read as four axes | C1 |
+| §7.2 | "Development window (2019 → holdout start)" | 2021-12 → 2025-08-01, pinned | D3, C4 |
+| §7.2 | "one evaluation … per strategy family" | one evaluation, total | C4 |
+| §8 | runtime: small EU VPS; "the dev laptop is not an ops platform" | Runs in Docker on the developer's Mac. One 47.4 h outage (laptop down) | — |
+| §8 | watchdogs: candle-age ✓, heartbeat, crash-loop, position-age, daily P&L ✓ | Heartbeat is in-process (a dead host is silent — external ping added 2026-08-25, `HEALTHCHECK_PING_URL`); crash-loop = Docker restart policy, no alert; position-age not implemented | — |
+| §2.2 (R6) | P&L reported in USDC **and EUR** | USDC only; EUR reporting not built | — |
+| §10 | "1h candles"; starter strategies SMA + RSI; "holdout report for both" | Deployed strategy decides on 4h closes; a third family (donchian) was added (D0); holdout sealed by decision — DoD reconciled clause-by-clause in REPORT §10 | D0, C7 |
+| §10 | "≥4 weeks unattended" | 28 days at ≥95% tick coverage, outages extend; ends 2026-09-06 00:02Z | C6 |

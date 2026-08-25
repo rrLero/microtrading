@@ -67,7 +67,30 @@ Update it after every significant operational or engineering change.
   project + `pgdata` volume as dev compose → data is shared with host tooling
   on port 55432). Dashboard runs separately via `pnpm --filter @microtrading/dashboard dev`.
 - Phase 3 soak in progress: strategy `donchian-breakout(40,10)` on BTC/USDC 4h,
-  paper account started 2026-08-07 with 10,000 USDC. Position flat.
+  paper account started 2026-08-07 with 10,000 USDC. **Soak ends 2026-09-06
+  00:02Z** (SPEC §7.5 C6: 28 days at ≥95% tick coverage; the 47.4h outage of
+  08-18→08-20 extends it — NOT 09-04). Position: LONG since 2026-08-25 04:02Z
+  (0.01263 BTC @ 80,505.04, stop 78,011.03); one signal round trip closed
+  08-23 (+17.1% price). Re-read `/api/status` before quoting.
+- **2026-08-25 stress test applied** (`docs/STRESS-TEST-2026-08-25.md`). Read
+  SPEC §7.5 **D0** and **C1–C8** and SPEC **Appendix D (errata)** before
+  trusting any sentence in SPEC §§1–10 — the frozen text is stale in ~20
+  places and Appendix D maps each to the current truth. Highlights that bind:
+  - `HOLDOUT_FROM` is PINNED at 2025-08-01 (C4); one holdout evaluation TOTAL.
+  - Total N across all families ≤ 45, enforced by `preregister` (C5); a new
+    family is a logged deviation. N is currently **34**.
+  - §7.4 "100 trades" = RAW trades (C2); the 3-month kill criterion is read on
+    pooled OOS+paper and FIRES for both surviving families (C3) — they are
+    killed under §7.4 as well as by concentration.
+  - `run-universe` now writes a `kind='evaluation'` row per run (C8, not a
+    trial, excluded from N). Cite the row id when quoting a number: **#44
+    donchian** (PF 2.37, DSR 0.82, 215 trades), **#45 sma-crossover** (1.99,
+    0.87, 497), **#46 rsi-reversion** (0.74, 0.00, 599) — all at `8ff3346`,
+    N=34, reproducing the 08-12/08-24 prose figures exactly.
+  - `HEALTHCHECK_PING_URL` (env, optional): MonitorService pings it every 15
+    min; an external dead-man's service alerts when pings STOP. Unset = no-op.
+    Not yet deployed to the container — set the URL in `.env` and redeploy at
+    a convenient hour, or at the soak end.
 - **VENUE + COSTS + UNIVERSE all changed 2026-08-12** (SPEC §7.5 D1/D2/D3 — read
   them before touching anything cost-related):
   - **Bybit is now BOTH the data and execution venue.** Kraken is no longer used
@@ -118,7 +141,20 @@ Update it after every significant operational or engineering change.
   `run-universe` now prints all of this automatically.
 - **SPEC IS FROZEN.** D3 was declared the final amendment before the holdout.
   Do not widen scope again; if results disappoint, §7.4's stopping rule applies.
-- Holdout remains SEALED. Do not evaluate it without an explicit human decision.
+- Holdout remains SEALED (boundary pinned 2025-08-01, C4). Do not evaluate it
+  without an explicit human decision; REPORT §1.2 records it will not be.
+- **Phase 4 (LLM analyst) is DECIDED, starting after the soak completes
+  2026-09-06** (human decision 2026-08-25, logged in WORKLOG before any LLM
+  output existed; pre-registration in `docs/PHASE4-PREREG.md` — read it, it
+  pins schema, model, triggers, cost cap and the no-prompt-hunting rule). **Scope is OBSERVABILITY ONLY: the analyst journals regime
+  commentary, context features and post-trade reviews; NO strategy consumes
+  them in V1.** So it adds zero trials — DSR's N stays 34. §2.5 hard rules
+  bind: the LLM never places orders, and features may NEVER be synthesized for
+  past dates (the forward clock cannot be backfilled, which is why this starts
+  promptly). Grid-searching prompt variants and keeping the best is FORBIDDEN —
+  that is multiple testing and would raise N. Expect no verdict on AI value in
+  V1: turnover of 10-25 round trips/yr gives ~3-6 trades in 3 months against
+  §7.4's 100-trade floor.
 - Kill-switch drill completed 2026-08-09/10 (flatten, halt, resume all verified).
   Next drill due ~2026-09-09.
 - §6.3 gate is stated BY COMPONENT, not as one aggregate (`calibrate-report`):

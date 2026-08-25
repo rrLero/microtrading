@@ -3,14 +3,12 @@ import { execSync } from 'node:child_process';
 import { Injectable, Logger } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import {
-  addUtcMonths,
   buildWalkForwardWindows,
   computeMetricsFromParts,
   donchianBreakout,
   rsiReversion,
   runBacktest,
   smaCrossover,
-  startOfUtcMonth,
   DEFAULT_RISK,
   type BacktestConfig,
   type Candle,
@@ -41,6 +39,20 @@ export const FACTORIES: Record<StrategyFamily, (params: Record<string, number>) 
 };
 
 export const MAX_TRIALS_PER_FAMILY = 20;
+/**
+ * Total distinct configurations across ALL families (SPEC §7.5 C5, 2026-08-25).
+ * §7.1 capped configs per family but never families, so N was unbounded — and
+ * the §7.4 stopping rule, the only other cap, was walked past once (§7.5 D0).
+ * MinBTL guidance (Bailey et al. 2014) is ≤45 trials for 5 years of data.
+ */
+export const MAX_TOTAL_CONFIGS = 45;
+/**
+ * Holdout boundary, PINNED (SPEC §7.5 C4, 2026-08-25). It used to be computed
+ * as "12 months before registration", so a family registered later would get a
+ * later boundary and its development window would overlap every earlier
+ * family's sealed holdout. One boundary, one holdout, one evaluation — total.
+ */
+export const HOLDOUT_FROM = Date.UTC(2025, 7, 1);
 /** Candles of warmup context prepended before each test window (not counted). */
 const WARMUP_CANDLES = 720;
 
@@ -111,7 +123,15 @@ export class ExperimentService {
     // Sanity-check every config constructs
     for (const params of grid) FACTORIES[family](params);
 
-    const holdoutFrom = startOfUtcMonth(addUtcMonths(Date.now(), -12));
+    const poolNow = await this.countDistinctConfigsAllFamilies();
+    if (poolNow + grid.length > MAX_TOTAL_CONFIGS) {
+      throw new Error(
+        `Registering ${grid.length} configs would take the all-families pool to ${poolNow + grid.length}; ` +
+          `the total budget is ${MAX_TOTAL_CONFIGS} (SPEC §7.5 C5). Registering a new family is a logged deviation — write it up first.`,
+      );
+    }
+
+    const holdoutFrom = HOLDOUT_FROM;
     await this.dbs.db.insert(experiments).values({
       kind: 'preregistration',
       strategyFamily: family,
@@ -151,10 +171,33 @@ export class ExperimentService {
    */
   async countDistinctConfigsAllFamilies(): Promise<number> {
     const rows = await this.dbs.db
-      .select({ hash: experiments.paramsHash })
+      .select({ family: experiments.strategyFamily, hash: experiments.paramsHash })
       .from(experiments)
       .where(eq(experiments.kind, 'trial'));
-    return new Set(rows.map((r) => r.hash).filter(Boolean)).size;
+    // Keyed by (family, hash): the hash covers params only, so two families
+    // sharing a parameter vocabulary would otherwise collapse into one config.
+    return new Set(rows.filter((r) => r.hash).map((r) => `${r.family}:${r.hash}`)).size;
+  }
+
+  /**
+   * SPEC §7.1.3: "every backtest run is logged". Trials are counted toward N;
+   * evaluations are NOT — they re-measure pre-registered configs (pooled
+   * universe, sensitivity sweeps) without introducing a selection opportunity.
+   * Until 2026-08-25 `run-universe` recorded nothing, so every headline number
+   * in REPORT.md existed only as prose (stress test A2). This is the record.
+   */
+  async logEvaluation(family: string, payload: Record<string, unknown>, bestParams?: Record<string, number>): Promise<number> {
+    const [row] = await this.dbs.db
+      .insert(experiments)
+      .values({
+        kind: 'evaluation',
+        strategyFamily: family,
+        paramsHash: bestParams ? paramsHash(bestParams) : null,
+        gitSha: gitSha(),
+        payload,
+      })
+      .returning({ id: experiments.id });
+    return row?.id ?? -1;
   }
 
   async countTrials(family: string): Promise<number> {

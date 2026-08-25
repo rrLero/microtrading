@@ -598,6 +598,29 @@ async function main(): Promise<void> {
     }
 
     console.log('\nHoldout NOT evaluated: §7.2 burns it once.');
+
+    // §7.1.3 — record the run. Not a trial: N is unchanged (kind='evaluation'
+    // is excluded from the selection pool). Sensitivity runs are recorded too,
+    // flagged, so a number quoted from one can be traced to its override.
+    const evalId = await experiments.logEvaluation(
+      family,
+      {
+        kind: 'pooled-universe',
+        sensitivity: slippageOverride !== undefined,
+        costs: effective,
+        universe: { dataVenue: uni.dataVenue, pairs: [...dev.keys()] },
+        holdoutFrom: prereg.holdoutFrom,
+        nTotal,
+        gridN,
+        survivors,
+        best: best
+          ? { params: best.params, pf: best.pf, trades: best.trades, effTrades: best.eff, dsr: best.dsr, sharpe: best.sharpe, mde: best.mde }
+          : null,
+        rows: rows.map((r) => ({ params: r.params, pf: r.pf, trades: r.trades, effTrades: r.eff, dsr: r.dsr, sharpe: r.sharpe })),
+      },
+      best?.params,
+    );
+    console.log(`Recorded as experiments#${evalId} (kind=evaluation — not a trial, N unchanged).`);
   } finally {
     await app.close();
   }

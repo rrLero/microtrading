@@ -723,3 +723,129 @@ probe work uncovered a silent mirror bug.
 - This is the last analysis this evidence supports. Next: draft §10
   (infrastructure result), which is the project's actual deliverable under
   §7.4's stopping rule.
+
+## 2026-08-25 — Decision: Phase 4 (LLM analyst) starts after the soak, scoped to observability
+
+- **Decision, recorded before the fact.** Phase 4 begins once the Phase 3 soak
+  completes **2026-09-04** and §10 of REPORT.md is written. Logged now, while no
+  LLM feature exists and no LLM output has been seen, so the scope below cannot
+  be read as having been chosen to fit a result. This is a roadmap sequencing
+  decision, not a protocol deviation — §7.5 is untouched and N stays 34.
+- **Why it is worth doing at all.** §1.2 goal 3 — "evaluate where AI genuinely
+  adds value vs. where deterministic code is better" — is the only stated project
+  goal with no evidence behind it. All three families are deterministic
+  indicators; the repo contains zero LLM code (`grep -riE 'anthropic|openai|llm'
+  over apps/ and packages/` returns nothing). The project is named for a
+  capability it does not have.
+- **Why the timing is the binding constraint, and the one thing genuinely worth
+  hurrying.** §2.5 hard rule 2 forbids synthesizing LLM features for past dates:
+  a feature exists only from the moment it was generated live and journaled.
+  The forward-evaluation clock therefore cannot be backfilled, simulated, or
+  caught up — every un-journaled day is evidence permanently unavailable. This is
+  the opposite of the strategy-family question, where more work costs N and buys
+  nothing.
+- **SCOPE COMMITMENT — observability only, no strategy consumes LLM features in
+  V1.** The analyst writes regime commentary, news/context features and
+  post-trade reviews into the append-only journal as recorded observations.
+  Nothing reads them back into a signal. Consequences, stated so this cannot
+  drift later:
+  - It adds **zero trials**. Nothing is being selected on, so DSR's N stays 34
+    and no already-published number is re-deflated.
+  - It cannot touch the order path (§2.5 hard rule 1, §4.1 constraint 2), and it
+    inherits the mirror discipline: all analyst errors are caught and journaled,
+    never able to break the paper loop.
+  - **Grid-searching prompt variants and keeping the best is forbidden.** That is
+    the multiple-testing problem in new clothing and would silently raise N.
+- **Honest ceiling, agreed up front so the writeup does not overclaim.** D1
+  records this strategy's turnover as 10-25 round trips/yr on one pair, so three
+  months of forward paper yields roughly **3-6 round trips**. §7.4's floor is 100
+  trades. The §2.5-mandated LLM-off ablation would compare two samples of a
+  handful of trades each — an anecdote, not an experiment. Phase 4 in V1
+  delivers a working, look-ahead-safe, journaled integration and starts the
+  clock. It does **not** deliver a verdict on whether AI adds value, and the
+  report must say so.
+- **Blocker to close before Phase 3 can be called done:** §6.3 axis 2 (slippage
+  vs the sampled book) is currently **FAIL** — p90 0.0324% against a 0.03% model,
+  278/2283 samples breaching across seven pairs. Phase 3's definition of done
+  includes the calibration gate. Either the model is corrected or the failure is
+  recorded as a known limitation in REPORT §8 with the pooled-evaluation impact
+  stated. Not a Phase 4 problem, but it must not be skipped past on the way there.
+
+## 2026-08-25 (b) — Stress test of the docs against the ledger; findings applied
+
+- **`docs/STRESS-TEST-2026-08-25.md`** — a second adversarial review, this time
+  checking SPEC/REPORT claims against the `experiments` table, the git log and
+  the code rather than against the prose. The human delegated the judgment
+  calls ("answer it yourself using trusted sources") and gave a green light to
+  apply. Every decision below is therefore recorded with its reasoning, and
+  none touches the trading loop during the soak.
+- **The finding that matters — D0.** The ledger shows donchian-breakout was
+  pre-registered at 23:03:43Z on 08-06, five minutes after rsi-reversion's
+  results and nine after sma-crossover's. The code comment ("the structural
+  answer to the cost drag that killed both 1h families") and the grid note
+  ("the stopping rule already triggered once") both say the family was chosen
+  after the first two failed — and §7.4 said stop at two. This was the first
+  widen-after-a-setback, three days before the log existed, and it was not in
+  §7.5. REPORT §4 called the choice "fixed ex ante" and §1 called running a
+  third family "met and exceeded". N=34 already prices the selection, so no
+  number changes; the register and the narrative were wrong. **Logged as
+  SPEC §7.5 D0 (backdated, timing "after"); REPORT §1, §4, §11 corrected.**
+- **§7.1.3 was being violated.** `run-universe` recorded nothing; the ledger
+  had zero pooled-universe rows, so PF 2.37 / 1.99 / 0.74, DSR, regime and
+  concentration existed only as prose. `ExperimentService.logEvaluation` +
+  `run-universe` now write a `kind='evaluation'` row (params hash, git SHA,
+  costs, sensitivity flag, universe, headline metrics), excluded from N.
+  First rows: **#44 donchian** (PF 2.37, DSR 0.82, N=34 — reproduces 08-12
+  exactly), sma-crossover and rsi-reversion recorded the same session.
+- **"Committed to git before any backtest" was never true** — repo initialised
+  08-11, registrations 08-06 with `git_sha='no-git'`. Journal half held (11–15s
+  before first trial). REPORT §4 now says so.
+- **Clarifications C1–C8 logged in §7.5** (a new list, distinct from
+  deviations: readings of frozen text that turned out unevaluable or ambiguous,
+  with timing). Decisions taken by the agent under delegation, with reasoning:
+  - C1 §6.3 read as four axes (in force since 08-11, unlogged until now).
+  - C2 §7.4 "100 trades" = raw; effective N is disclosure only. Reason: the DSR
+    already absorbs sample size; a second deflation was post-hoc tightening.
+  - C3 kill criteria scoped: 3-month rule on pooled concatenated OOS+paper,
+    calendar months, flat/no-data breaks a run, a dev-window fire kills. Under
+    this reading BOTH surviving families are killed by §7.4 itself (donchian to
+    2024-06, sma to 2024-08). Reason: §7.4 lists it under "OOS/paper" kill
+    criteria; reading it as paper-only would make it unevaluable for months
+    and exempt the one window where it is actually measured.
+  - C4 `HOLDOUT_FROM` pinned at 2025-08-01 (was `now − 12mo` at registration —
+    a September family would have received 2025-09-01 and its dev window would
+    overlap the sealed holdout); one holdout evaluation TOTAL, not per family.
+  - C5 total N ≤ 45 across all families (MinBTL), enforced in `preregister`.
+  - C6 soak = 28 days at ≥95% tick coverage, outages extend → **ends
+    2026-09-06 00:02Z**, not 09-04. Decided now so it cannot be chosen after
+    seeing the last week.
+  - C7 §10 not amended (would be a D4); REPORT §10.1 scores the DoD clause by
+    clause instead — "1h candles" differs, "holdout report" unmet by decision.
+  - C8 evaluation rows (above).
+- **SPEC Appendix D — Errata.** ~20 stale statements in the frozen §§1–10
+  (Kraken everywhere, SQLite, 2019 backfill, VPS runtime, CI, EUR reporting,
+  weekly cutoff, native stops, reconciliation, maker model…) each mapped to
+  current truth. Frozen text untouched; header bumped to v0.3.1 with a
+  reading rule. REPORT §10.2 carries the specified-vs-built table.
+- **REPORT internal contradiction fixed:** §1.2 still argued from the
+  59-effective floor and dev DSR that §1 had withdrawn; rewritten to stand on
+  the conjunctive gate + C3 + concentration. Stale figures refreshed (−3.91
+  USDC → +153.97 after a +17.1% signal round trip; "one real trade" → five
+  fills; §2 power now per family: 0.85 and 0.89 vs 1.04; §6 pair-years
+  stated for both total and dev window).
+- **Code (ops/CLI only, no loop change, not deployed):**
+  `experiment.service.ts` — `HOLDOUT_FROM`, `MAX_TOTAL_CONFIGS`,
+  `logEvaluation`, `countDistinctConfigsAllFamilies` keyed by (family, hash)
+  so a future family sharing a parameter vocabulary cannot merge into an old
+  one; `run-universe.ts` — records the run; `monitor.service.ts` —
+  `deadMansPing()` on the 15-min health cron, gated on `HEALTHCHECK_PING_URL`.
+  Reason for the ping: every alert is sent by the process being monitored, so
+  the 47h outage produced silence; an external service that alerts on
+  *absence* of pings is the only thing that catches a dead host. Ships gated
+  off; needs the URL in `.env` and a container redeploy — deliberately not
+  done mid-soak. Typecheck clean, core 36/36.
+- **`docs/PHASE4-PREREG.md`** written: the eight §2.5 holes closed before any
+  API call (triggers, no news source in V1, pinned JSON schema, prompt+model
+  hash per row, cost cap, mirror-style isolation, kill-switch pause, no
+  strategy consumes features). Model pinned `claude-opus-5`.
+- Nothing committed; the human commits.

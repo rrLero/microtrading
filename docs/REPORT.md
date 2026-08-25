@@ -1,8 +1,12 @@
 # MicroTrading V1 — Evaluation Report
 
-**Status: DRAFT pending the soak only.** Revised 2026-08-24 — §1.1 (concentration)
-is new and decisive; §5 and §8 correct figures computed at a superseded cost
-basis. The holdout has not been evaluated and,
+**Status: DRAFT pending the soak only.** Revised 2026-08-25 after
+`docs/STRESS-TEST-2026-08-25.md`: §1 and §4 no longer describe the third family
+as an ex-ante choice (SPEC §7.5 D0); §1.2 no longer cites withdrawn gates; §10
+carries the definition-of-done and built/not-built reconciliation; §11 counts
+the register correctly. Revised 2026-08-24 — §1.1 (concentration) is new and
+decisive; §5 and §8 correct figures computed at a superseded cost basis. The
+holdout has not been evaluated and,
 on the reasoning in §1.2, **will not be** — it is recorded as sealed and
 unopened, not deferred. The remaining `[PENDING]` is §10, which fills when the
 soak completes 2026-09-04. Everything else is final.
@@ -57,7 +61,12 @@ frozen before Phase 1 code was written:
 > infrastructure and the writeup — *that is a successful outcome.* The base
 > rates say this is the most likely outcome; we commit to it in writing now.
 
-Three families were evaluated, not two. The precondition is met and exceeded.
+The rule fired after two families on 2026-08-06 and was **overridden once**:
+a third family was registered five minutes after the second one's results were
+visible (SPEC §7.5 D0, found by the ledger nineteen days later). Earlier drafts
+of this paragraph called that "met and exceeded"; it was an override, then the
+rule was honoured. The deflated Sharpe's N=34 already prices the extra round of
+selection, so the numbers stand; the description did not.
 
 ### 1.1 The result is one month
 
@@ -128,16 +137,21 @@ nothing, and the decision is recorded here rather than left implicit.
 **The gate cannot be resolved by the holdout alone.** §7.4's gate to live pilot
 is conjunctive — *all* conditions required. Three of them are not assessable for
 months: ≥3 months paper (the account opened 2026-08-07, so 2026-11-07 at the
-earliest), positive net after costs in pessimistic mode (currently −3.91 USDC on
-a single round trip), and paper-vs-backtest tracking error within the §6.3 bound
-(axis 4 of the calibration gate is NOT EVALUABLE — Bybit demo has zero spread,
-so it cannot be closed on that venue at all). Two more conditions already fail on
-development data: minimum evidence at 59 effective trades of 100, and deflated
-Sharpe at 0.82 of 0.95.
+earliest — 18 days in as of 2026-08-25, +1.5% on one completed round trip and
+one open position), positive net after costs in pessimistic mode over that
+whole period, and paper-vs-backtest tracking error within the §6.3 bound (axis
+4 of the calibration gate is NOT EVALUABLE — Bybit demo has zero spread, so it
+cannot be closed on that venue at all). *(An earlier draft of this paragraph
+also cited "59 effective trades of 100" and "DSR 0.82 of 0.95" as failing
+conditions; §1 withdraws both as gates, and they are withdrawn here too. The
+argument does not need them.)*
 
-So a favourable holdout would not produce a pass — it would produce a wait. An
-unfavourable one ends the project, which is where the project already is. In
-neither branch does opening it now change an action taken now.
+And both surviving families are already **killed on the development window**:
+§7.4's third kill criterion fires for each (§1 table; SPEC §7.5 C3), and §1.1
+shows why the aggregate looked alive. A favourable holdout would therefore not
+produce a pass — it would produce a wait on a family the protocol has already
+stopped. An unfavourable one ends the project, which is where the project
+already is. In neither branch does opening it now change an action taken now.
 
 **And the cost of opening it is asymmetric.** §7.5 records that two of three
 deviations followed setbacks (D2 after failure at 0.80%, D3 after DSR stalled at
@@ -164,21 +178,23 @@ found anything" (Harvey & Liu 2020, *False (and Missed) Discoveries*).
 | | |
 |---|---|
 | Minimum detectable annualised Sharpe, 95%, N=34 | **1.04** |
-| Best configuration's observed Sharpe | **0.85** |
-| Verdict | Observed **below** the detection bar |
+| donchian-breakout {55,20} observed Sharpe | **0.85** |
+| sma-crossover {10,200,30} observed Sharpe | **0.89** |
+| Verdict | Both observed **below** the detection bar |
 
 **What this null does and does not establish:**
 
 - It **rules out** a persistent edge with annualised Sharpe materially above
-  **~1.04** in this strategy family, on this universe, at these costs. Had one
-  existed, this sample would have certified it.
-- It **does not rule out** a genuine edge *smaller* than that. The observed 0.85
-  is consistent both with a real but modest edge and with noise, and this data
-  cannot separate the two.
+  **~1.04** in either surviving family, on this universe, at these costs. Had
+  one existed, this sample would have certified it.
+- It **does not rule out** a genuine edge *smaller* than that. The observed
+  0.85 and 0.89 are consistent both with a real but modest edge and with noise,
+  and this data cannot separate the two.
 
-So the honest claim is narrow: *donchian breakouts on liquid USDC majors do not
-produce a large, easily-detectable edge net of realistic costs.* Anyone reading
-this as "trend-following doesn't work" is over-reading it.
+So the honest claim is narrow: *slow trend-following (Donchian breakouts, SMA
+crossovers with a 4h trend filter) on liquid USDC majors does not produce a
+large, easily-detectable edge net of realistic costs.* Anyone reading this as
+"trend-following doesn't work" is over-reading it.
 
 ---
 
@@ -200,16 +216,22 @@ this as "trend-following doesn't work" is over-reading it.
 
 ## 4. Research motivation *(AHM category 1)*
 
-**Economic foundation, fixed ex ante.** Donchian breakout is classical
-trend-following: the hypothesis is that crypto majors exhibit momentum
-persistence at multi-day horizons sufficient to overcome round-trip costs. The
-family was chosen *because* it is slow — SPEC records it as "the structural
-answer to the cost drag that killed both 1h families," a cost argument made
-before it was tested.
+**Economic foundation — and an honest account of when it was chosen.** Donchian
+breakout is classical trend-following: the hypothesis is that crypto majors
+exhibit momentum persistence at multi-day horizons sufficient to overcome
+round-trip costs. The family was chosen *because* it is slow — the code records
+it as "the structural answer to the cost drag that killed both 1h families."
+That sentence gives the timing away: **the family was selected after the first
+two had failed**, five minutes after the second one's results were visible
+(SPEC §7.5 D0). The economic argument is sound, but it was not made ex ante; an
+earlier draft of this paragraph said it was. The deflated Sharpe's N=34 spans
+all three families precisely so that this round of selection is priced.
 
-**Pre-existence:** the grid was committed to git and journalled before any
-backtest (§7.1). Pre-registration is immutable; tooling refuses to run against
-the holdout without one.
+**Pre-existence:** each grid was journalled 11–15 seconds before its first
+trial (§7.1). Pre-registration is immutable; tooling refuses to run against the
+holdout without one. The *git* half of §7.1.1 ("committed to git before any
+backtest") could not have held — the repository was initialised 2026-08-11, five
+days after registration; all three registrations carry `git_sha = 'no-git'`.
 
 ---
 
@@ -259,7 +281,7 @@ MinBTL guidance (Bailey et al. 2014) suggests ≤45 independent configurations f
 |---|---|
 | Data venue | Bybit (same as execution — removes a basis error, §7.5 D3) |
 | Universe | 10 USDC spot pairs by ex-ante rule (§2.2) |
-| History | ~28 pair-years, earliest 2021-12 |
+| History | ~40 pair-years of 1h candles in total (354k bars), earliest 2021-12; ~30 pair-years in the development window after the 12-month holdout is removed |
 | Timeframe | 1h ingested; 4h derived locally, closed candles only |
 | Holdout | 12 months from 2025-08-01, **SEALED** |
 
@@ -343,11 +365,16 @@ survived Phase 0.
 against multi-million daily volumes makes market impact negligible under the
 square-root law; the cost model is essentially all fees.
 
-**One real trade, as illustration.** The paper account took exactly one round
-trip: bought 0.0154 BTC at 65,001.49 on a genuine breakout signal, sold at
-65,085.62 during the kill-switch drill. Price moved *in its favour* (+1.29 gross);
-fees took −5.20; net **−3.91**. A correct directional call that lost money to
-costs.
+**The paper record, as illustration (through 2026-08-25).** Five fills. The
+first round trip — bought 0.0154 BTC at 65,001.49 on a genuine breakout signal,
+sold at 65,085.62 during the kill-switch drill — moved *in its favour* (+1.29
+gross), paid −5.20 in fees, net **−3.91**: a correct directional call that lost
+money to costs. The second, the only one closed by a strategy signal so far,
+bought at 64,839.65 (08-18) and sold at 75,958.71 (08-23): +17.1% on price,
++1.7% on equity at §5.1 sizing — the position was ~10% of equity. A third
+position opened 08-25 at 80,505.04 and is open at the time of writing. Equity
+10,153.97 USDC (+1.5%). None of this is evidence (§7.4: a soak qualifies
+infrastructure); it is what the fill model looks like when it runs.
 
 ---
 
@@ -374,29 +401,70 @@ costs.
 
 ## 10. Infrastructure result
 
-`[PENDING — soak completes 2026-09-04]`
+`[PENDING — soak completes 2026-09-06 00:02Z (SPEC §7.5 C6: 28 days at ≥95%
+tick coverage; the 47.4 h outage of 08-18 → 08-20 extends the window)]`
 
 §7.4 is explicit that a soak qualifies *infrastructure*, not a strategy. This is
 where the project's actual deliverable is assessed: uptime, tick cadence,
 catch-up replay, kill-switch drills, watchdogs, calibration coverage.
 
+### 10.1 Definition of done (SPEC §10), clause by clause
+
+SPEC §10 is frozen and describes a plan that D0–D3 and §1.2 have since changed
+(SPEC §7.5 C7). Rather than amend it, each clause is scored here.
+
+| §10 clause | Status | Note |
+|---|---|---|
+| agent runs unattended ≥4 weeks | `[PENDING 2026-09-06]` | Read under C6. Ran on the developer's Mac, not the VPS §8 specifies; one 47.4 h outage, self-healed with a 48-candle replay and no fills lost |
+| paper-trading BTC/USDC | **Met** | one position, BTC/USDC only, since 2026-08-07 |
+| on 1h candles | **Differs** | 1h ingested; the deployed strategy decides on closed 4h candles derived locally. The 1h families were killed on cost |
+| full journaling | **Met** | append-only; 2,500+ ops rows, 440 decisions, 424 equity marks, every fill mirrored |
+| dashboard | **Met** | read-only, port 3002 |
+| watchdogs | **Partial** | candle-age, loop-silence, infra-down, daily summary built; position-age and crash-loop alerts not; the heartbeat was in-process only until 08-25 (SPEC App. D) |
+| walk-forward report for both starter strategies | **Met, and for a third** | SMA, RSI (the frozen starters) and donchian (D0), all pooled over the ten-pair universe |
+| holdout report | **Unmet by decision** | §1.2. Sealed, not deferred |
+| produced under the §7 protocol | **Met, with a register** | four deviations, eight clarifications (§11), all logged with timing |
+
+### 10.2 Specified vs built
+
+What §5 and §8 promise and what exists, so "the infrastructure works" is an
+exact claim (SPEC Appendix D has the full list):
+
+| Built and exercised | Specified, not built in V1 |
+|---|---|
+| §5.1 ATR sizing, 1% risk, 10% notional cap, vol circuit breaker | §5.3 weekly −6% cutoff |
+| §5.3 daily −3% cutoff | §5.2 native exchange stops (paper stop is simulated per candle; none placed on demo) |
+| §5.2 pessimistic stop fills, gap → next open | §3.5 restart reconciliation against a venue (interface only) |
+| §6.2 taker fill model, single-sourced across backtest/paper/probe | §6.2 maker model |
+| §4.1.4 kill switch: DB flag, flatten + halt, drilled 08-09/10 | §4.1.4 "tested in CI" — no CI |
+| §8 candle-age, loop-silence, infra-down, daily summary pushes | §8 position-age alert, crash-loop alert |
+| catch-up replay after outage, closed-candle discipline | §8 VPS runtime |
+| §6.3 hourly ten-pair spread sampling, daily demo probe, per-axis report | §2.2 EUR reporting |
+
 ---
 
 ## 11. Protocol deviations *(the register)*
 
-Three, all in `SPECIFICATION.md` §7.5 with the timing of when each was
-recognised — the field separating a low-bias correction from a result-driven one
-(Willroth & Atherton 2024).
+Four deviations and eight clarifications, all in `SPECIFICATION.md` §7.5 with
+the timing of when each was recognised — the field separating a low-bias
+correction from a result-driven one (Willroth & Atherton 2024).
 
 | | What | Timing | Bias risk |
 |---|---|---|---|
+| **D0** | Third family registered after the §7.4 stopping rule fired (logged 08-25, nineteen days late, from the ledger) | **After** seeing two families fail | Priced by N=34; the register was incomplete and §1/§4 misdescribed it until 08-25 |
 | **D1** | Taker fee 0.26% → 0.80% | Recognised from a published source, committed **before** any re-run | Low |
 | **D2** | Execution venue Kraken → Bybit EU | **After** seeing failure at 0.80% | Contained by ex-ante venue rule + no-re-shop commitment |
 | **D3** | Multi-pair universe; data venue → Bybit | **After** DSR stalled at 0.70 | Declared final amendment |
 
-**Stated plainly: two of three deviations followed setbacks.** Each is
-individually defensible; the sequence is what a project looks like when it is
-talking itself into an answer. The sealed holdout is the remaining control.
+Clarifications C1–C8 (§6.3 as four axes; raw-trade floor; kill-criteria scope;
+pinned holdout and one evaluation total; total N ≤ 45; the soak's end rule; §10
+not amended; evaluation rows) are readings of frozen text, not changes to the
+question, and are logged for the same reason.
+
+**Stated plainly: three of four deviations followed setbacks, and the first of
+them went unlogged for nineteen days.** Each is individually defensible; the
+sequence is what a project looks like when it is talking itself into an answer.
+The sealed holdout is the remaining control.
 
 **Known limitations:**
 - Effective *trial* count is not computed. The 34 configurations are themselves
@@ -405,8 +473,15 @@ talking itself into an answer. The sealed holdout is the remaining control.
   as the conservative choice.
 - Bayesianized p-values under multiple priors (Harvey 2017 §IX.A) are not
   computed.
-- The soak has produced one strategy round trip (two fills). Live evidence is
-  negligible.
+- The soak has produced one signal-closed round trip and one open position
+  (five fills including the drill). Live evidence is negligible.
+- **The numbers in §1, §1.1, §5, §7 and §9 were produced by runs that were not
+  recorded.** `run-universe` wrote nothing to the ledger until 2026-08-25
+  (SPEC §7.5 C8); the only trial rows are at the retired and superseded cost
+  bases. Everything is reproducible from Appendix A and the first recorded
+  pooled evaluation rows (`experiments`, `kind='evaluation'`) reproduce the
+  08-12/08-24 figures exactly — but for thirteen days the report's evidence
+  existed only as prose.
 - **The 0.03% slippage floor is now breached at p90 — §6.3 axis 2 FAILS.**
   Full numbers and the sensitivity that shows it immaterial are in §8. Left
   uncorrected deliberately: raising the modelled rate is a §6.2 cost-basis change
@@ -415,13 +490,15 @@ talking itself into an answer. The sealed holdout is the remaining control.
   Disclosed here because disclosure is cheap precisely when the verdict is
   already null — which is the point at which such things usually are not
   disclosed.
-- **An unlogged protocol tightening was in force for weeks.** A 59-effective-
+- **Two unlogged protocol readings were in force for weeks.** A 59-effective-
   trades bar, absent from §7.4, was recorded in project state as though it were
-  the spec's requirement and blocked progress accordingly (§1). It was
-  conservative in direction, which is why it went unchallenged — but a
-  pre-registration is not protected only against changes that flatter. Corrected
-  2026-08-24; noted here because the deviation register would otherwise show
-  three deviations when the true count of unrecorded protocol drift is four.
+  the spec's requirement and blocked progress accordingly (§1; now C2). And
+  §6.3's ">30% from demo fills" was read as four axes from 08-11 without the
+  decision being recorded (now C1). Both were conservative in direction, which
+  is why they went unchallenged — but a pre-registration is not protected only
+  against changes that flatter. Together with D0, the register as it stood on
+  2026-08-24 showed three deviations when the true count of unrecorded
+  protocol drift was six.
 
 ---
 
@@ -451,7 +528,15 @@ pnpm --filter @microtrading/agent calibrate-report
 ```
 
 Trial ledger, pre-registrations and the full journal live in Postgres; grids and
-the universe are in `experiments/`, git-tracked and immutable.
+the universe are in `experiments/`, git-tracked and immutable. Since 2026-08-25
+every `run-universe` invocation also writes a `kind='evaluation'` row (params,
+git SHA, cost basis, sensitivity flag, universe, headline metrics) — cite the
+row id when quoting a number:
+
+```sql
+select id, at, strategy_family, git_sha, payload->'best' from experiments
+ where kind = 'evaluation' order by id;
+```
 
 ## Appendix B — Sources
 
