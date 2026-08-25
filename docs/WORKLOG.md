@@ -849,3 +849,22 @@ probe work uncovered a silent mirror bug.
   hash per row, cost cap, mirror-style isolation, kill-switch pause, no
   strategy consumes features). Model pinned `claude-opus-5`.
 - Nothing committed; the human commits.
+
+## 2026-08-25 (c) — Dashboard said "Calibration probe: never"; planned restart
+
+- Opened the dashboard in the browser. **"Calibration probe: never"** while
+  the journal shows probes at 13:37Z on 08-21, 22, 23, 24 (two demo fills
+  each). Cause: `StatusController.health().latest()` scanned only the last 60
+  `ops` rows and filtered in JS; the spread sampler writes 10 ops rows an hour,
+  so any event rarer than ~6-hourly fell out of the window. Same latent bug
+  would have hidden `lastSpreadSampleAt` had anything else flooded `ops`.
+  Fixed at the root: filter by `payload->>'event'` in SQL, `limit 1`; 0.3 ms
+  via backward index scan. Typecheck clean.
+- **Planned agent restart 13:24:20Z → 13:24:44Z** (`up -d --build agent`),
+  between ticks; zero ticks lost, loop re-armed, `lastProbeAt` now
+  `2026-08-24T13:37:00Z`, position and stop unchanged. Ships the (gated-off)
+  `deadMansPing` too, so setting `HEALTHCHECK_PING_URL` later needs only a
+  restart. Not an outage under C6; logged so the soak record shows it.
+- The Next.js dev overlay's "1 issue" is a hydration warning from
+  `data-locator-target="webstorm"` injected into `<html>` by the WebStorm
+  browser extension — not project code, ignore.

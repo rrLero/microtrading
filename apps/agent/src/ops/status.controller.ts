@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { desc, eq, gte, and } from 'drizzle-orm';
+import { desc, eq, gte, and, sql } from 'drizzle-orm';
 import { aggregate1hTo4h, donchianBounds, TIMEFRAME_MS } from '@microtrading/core';
 import { DbService } from '../db/db.service.js';
 import { journal } from '../db/schema.js';
@@ -128,15 +128,15 @@ export class StatusController {
 
   /** Liveness the dashboard can show without the operator reading logs. */
   private async health() {
+    // Filter by event in SQL. The old 60-row scan reported the daily probe as
+    // "never" — the spread sampler writes 10 ops rows an hour, so anything
+    // rarer than ~6-hourly fell out of the window (found on the dashboard 2026-08-25).
     const latest = async (kind: string, event?: string): Promise<string | null> => {
-      const rows = await this.dbs.db
-        .select({ at: journal.at, payload: journal.payload })
-        .from(journal)
-        .where(eq(journal.kind, kind))
-        .orderBy(desc(journal.id))
-        .limit(60);
-      const hit = event ? rows.find((r) => (r.payload as Record<string, unknown>)['event'] === event) : rows[0];
-      return hit ? hit.at.toISOString() : null;
+      const where = event
+        ? and(eq(journal.kind, kind), sql`${journal.payload}->>'event' = ${event}`)
+        : eq(journal.kind, kind);
+      const rows = await this.dbs.db.select({ at: journal.at }).from(journal).where(where).orderBy(desc(journal.id)).limit(1);
+      return rows[0] ? rows[0].at.toISOString() : null;
     };
     return {
       lastDecisionAt: await latest('decision'),
