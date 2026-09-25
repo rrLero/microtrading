@@ -1,6 +1,6 @@
 # MicroTrading V1 — Evaluation Report
 
-**Status: DRAFT pending the soak only.** Revised 2026-08-25 after
+**Status: FINAL for V1 as of 2026-09-25** (§10 and §12 written after the soak). Revised 2026-08-25 after
 `docs/STRESS-TEST-2026-08-25.md`: §1 and §4 no longer describe the third family
 as an ex-ante choice (SPEC §7.5 D0); §1.2 no longer cites withdrawn gates; §10
 carries the definition-of-done and built/not-built reconciliation; §11 counts
@@ -8,8 +8,7 @@ the register correctly. Revised 2026-08-24 — §1.1 (concentration) is new and
 decisive; §5 and §8 correct figures computed at a superseded cost basis. The
 holdout has not been evaluated and,
 on the reasoning in §1.2, **will not be** — it is recorded as sealed and
-unopened, not deferred. The remaining `[PENDING]` is §10, which fills when the
-soak completes 2026-09-04. Everything else is final.
+unopened, not deferred.
 
 Written to the checklist in **Arnott, Harvey & Markowitz (2019), "A Backtesting
 Protocol in the Era of Machine Learning"** (*Journal of Financial Data Science*),
@@ -371,9 +370,9 @@ sold at 65,085.62 during the kill-switch drill — moved *in its favour* (+1.29
 gross), paid −5.20 in fees, net **−3.91**: a correct directional call that lost
 money to costs. The second, the only one closed by a strategy signal so far,
 bought at 64,839.65 (08-18) and sold at 75,958.71 (08-23): +17.1% on price,
-+1.7% on equity at §5.1 sizing — the position was ~10% of equity. A third
-position opened 08-25 at 80,505.04 and is open at the time of writing. Equity
-10,153.97 USDC (+1.5%). None of this is evidence (§7.4: a soak qualifies
++1.7% on equity at §5.1 sizing — the position was ~10% of equity. Two more
+entries (08-25, 09-03) were both stopped out. Equity at the soak's end
+10,104.79 USDC (+1.05%; §10). None of this is evidence (§7.4: a soak qualifies
 infrastructure); it is what the fill model looks like when it runs.
 
 ---
@@ -401,8 +400,52 @@ infrastructure); it is what the fill model looks like when it runs.
 
 ## 10. Infrastructure result
 
-`[PENDING — soak completes 2026-09-06 00:02Z (SPEC §7.5 C6: 28 days at ≥95%
-tick coverage; the 47.4 h outage of 08-18 → 08-20 extends the window)]`
+**Written 2026-09-25, nineteen days after the soak ended** (it ended
+2026-09-06 00:02Z; no verdict was recorded until today — itself a finding).
+
+**Verdict under SPEC §7.5 C6: NOT MET — 93.9% of due ticks ran live, against
+95%** (C9). Window 08-07 00:02Z → 09-06 00:02Z = 720 hourly candles; the one
+declared outage (47 h, 08-18 → 08-20) leaves 673 due; **632 ran live**. The other
+88 candles were decided by catch-up replay after the process came back — six
+replays, none lost a decision, but a replayed candle cannot be filled live
+(the 08-23 exit was one), so they are not "observed".
+
+| Miss | Ticks | Cause |
+|---|---|---|
+| 08-18 21Z → 08-20 21Z | 47 | declared outage (C6) |
+| 08-22 16Z → 08-23 11Z | 18 | host asleep — one spread sample in 19 h, the whole VM paused |
+| 08-31 20Z → 09-01 08Z | 11 | host asleep, unnoticed at the time |
+| 08-09 21Z → 08-10 07Z | 9 | kill-switch drill (deliberate halt) |
+| 08-07, 08-12, 08-24 | 4 | short misses; 08-24 a DNS failure |
+
+Excluding the drill reads 632/664 = 95.2%, a pass. It is **not** adopted: C6
+was written after the drill, named one outage, and choosing the reading that
+flips a verdict after seeing it is the pattern §7.5 exists to stop.
+
+What the soak did establish:
+- **Correctness under interruption: yes.** Six catch-up replays (94 candles),
+  closed-candle discipline held, every missed stop was evaluated against the
+  candles it missed, zero `risk` rows, one `tick-error` in 30 days.
+- **Kill switch: yes.** Drilled 08-09/10 (flatten, halt, resume) and a second
+  on/off on 08-11 that correctly blocked a probe.
+- **Unattended uptime on this host: no.** Both unexplained misses are the
+  developer's Mac sleeping, and both were silent: the external dead-man's ping
+  (`HEALTHCHECK_PING_URL`) was built on 08-25 and never deployed. §8 said the
+  laptop is not an ops platform; the soak measured how much that costs.
+- **§6.3 coverage:** 5,163 spread samples, 32 daily probes, every fresh strategy
+  fill mirrored. Axis verdicts as of 2026-09-25: fees PASS; slippage FAIL at p90
+  (0.0396% vs 0.030%, n=9,263; immaterial per §8); mechanics PASS (92 pairs,
+  0 venue errors, 1 DNS error); fill-model-vs-venue FAIL at −128% on six
+  strategy pairs — the *model over-charges*: demo fills landed ~2 min after the
+  candle open the model prices at, and that drift was net favourable. Six
+  pairs of timing noise is not evidence either way. Two reporting bugs were
+  fixed before this was written (WORKLOG 2026-09-25): three of seven strategy
+  mirrors had lost their price to a read-back race (two recovered), and
+  slippage was measured as |drift|, which had booked favourable drift as cost
+  and printed the opposite conclusion (+948% "under-charging").
+- **Paper P&L over the window:** four round trips — the drill (−1.31), one
+  signal exit (+170.30), two stop-outs (−32.78, −25.79); equity **10,104.79
+  USDC (+1.05%)** at 09-06 00:02Z. Not evidence (§7.4).
 
 §7.4 is explicit that a soak qualifies *infrastructure*, not a strategy. This is
 where the project's actual deliverable is assessed: uptime, tick cadence,
@@ -415,10 +458,10 @@ SPEC §10 is frozen and describes a plan that D0–D3 and §1.2 have since chang
 
 | §10 clause | Status | Note |
 |---|---|---|
-| agent runs unattended ≥4 weeks | `[PENDING 2026-09-06]` | Read under C6. Ran on the developer's Mac, not the VPS §8 specifies; one 47.4 h outage, self-healed with a 48-candle replay and no fills lost |
+| agent runs unattended ≥4 weeks | **Unmet** | 93.9% live tick coverage vs C6's 95% (C9). Ran on the developer's Mac, not the VPS §8 specifies; two silent host sleeps (29 ticks) on top of the declared 47 h outage. Every missed candle was replayed; none was lost |
 | paper-trading BTC/USDC | **Met** | one position, BTC/USDC only, since 2026-08-07 |
 | on 1h candles | **Differs** | 1h ingested; the deployed strategy decides on closed 4h candles derived locally. The 1h families were killed on cost |
-| full journaling | **Met** | append-only; 2,500+ ops rows, 440 decisions, 424 equity marks, every fill mirrored |
+| full journaling | **Met** | append-only; over the window 5,223 ops rows, 720 decisions, 704 equity marks, 8 fills, every fresh fill mirrored |
 | dashboard | **Met** | read-only, port 3002 |
 | watchdogs | **Partial** | candle-age, loop-silence, infra-down, daily summary built; position-age and crash-loop alerts not; the heartbeat was in-process only until 08-25 (SPEC App. D) |
 | walk-forward report for both starter strategies | **Met, and for a third** | SMA, RSI (the frozen starters) and donchian (D0), all pooled over the ten-pair universe |
@@ -445,7 +488,7 @@ exact claim (SPEC Appendix D has the full list):
 
 ## 11. Protocol deviations *(the register)*
 
-Four deviations and eight clarifications, all in `SPECIFICATION.md` §7.5 with
+Four deviations and nine clarifications, all in `SPECIFICATION.md` §7.5 with
 the timing of when each was recognised — the field separating a low-bias
 correction from a result-driven one (Willroth & Atherton 2024).
 
@@ -456,9 +499,9 @@ correction from a result-driven one (Willroth & Atherton 2024).
 | **D2** | Execution venue Kraken → Bybit EU | **After** seeing failure at 0.80% | Contained by ex-ante venue rule + no-re-shop commitment |
 | **D3** | Multi-pair universe; data venue → Bybit | **After** DSR stalled at 0.70 | Declared final amendment |
 
-Clarifications C1–C8 (§6.3 as four axes; raw-trade floor; kill-criteria scope;
+Clarifications C1–C9 (§6.3 as four axes; raw-trade floor; kill-criteria scope;
 pinned holdout and one evaluation total; total N ≤ 45; the soak's end rule; §10
-not amended; evaluation rows) are readings of frozen text, not changes to the
+not amended; evaluation rows; the soak verdict, C9) are readings of frozen text, not changes to the
 question, and are logged for the same reason.
 
 **Stated plainly: three of four deviations followed setbacks, and the first of
@@ -473,8 +516,8 @@ The sealed holdout is the remaining control.
   as the conservative choice.
 - Bayesianized p-values under multiple priors (Harvey 2017 §IX.A) are not
   computed.
-- The soak has produced one signal-closed round trip and one open position
-  (five fills including the drill). Live evidence is negligible.
+- The soak produced four round trips (eight fills, one of them the drill).
+  Live evidence is negligible.
 - **The numbers in §1, §1.1, §5, §7 and §9 were produced by runs that were not
   recorded.** `run-universe` wrote nothing to the ledger until 2026-08-25
   (SPEC §7.5 C8); the only trial rows are at the retired and superseded cost
@@ -504,8 +547,32 @@ The sealed holdout is the remaining control.
 
 ## 12. Conclusion
 
-`[PENDING — blocked on §10 only; soak completes 2026-09-04. Not blocked on the
-holdout, which is sealed by decision per §1.2.]`
+*Written 2026-09-25.*
+
+**The research question has a bounded null.** No strategy family shows an edge
+that survives honest costs, pooled walk-forward and multiple-testing
+deflation: RSI reversion fails outright; the two survivors (donchian, SMA
+crossover) clear §7.4's kill line on aggregate only because of one month,
+2024-11, which carries ~77–79% of their return, and both are net negative in
+2025 (§1.1). The holdout stays sealed, by decision rather than deferral (§1.2):
+there is no candidate worth spending it on.
+
+**The infrastructure question has a qualified yes.** The system decides on
+closed candles only, prices fills pessimistically, replays what it misses,
+halts on command, and journals everything append-only — all exercised live
+for thirty days. What it did not do is stay up unattended *on this host*:
+93.9% live coverage against a pre-registered 95% (§10). The failure is the
+host, and it is recorded as a failure, not reinterpreted.
+
+**The process question is the most useful result.** Four deviations and nine
+clarifications (§11), three deviations following setbacks, several readings
+that ran unlogged for weeks, and — found while writing this section — a cost
+report whose sign convention inverted its own conclusion. A pre-registered
+protocol did not prevent any of that; the ledger made each one findable after
+the fact. That is the honest scope of what the discipline buys.
+
+Next, per `docs/PHASE4-PREREG.md`: the LLM analyst, observability only, N
+unchanged at 34.
 
 ---
 

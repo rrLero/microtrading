@@ -3,7 +3,7 @@
 **Version:** 0.3.1 (v0.3 frozen 2026-08-02; §7.5 deviation/clarification log and Appendix D errata appended 2026-08-25 — no frozen section was edited)
 **Date:** 2026-08-02 (frozen text) · 2026-08-25 (last appended entry)
 **Author:** Roman Levchenko (with Claude)
-**Status:** Phase 3 soak in progress (ends 2026-09-06, §7.5 C6); Phase 4 decided (`docs/PHASE4-PREREG.md`); holdout sealed by decision (REPORT §1.2)
+**Status:** Phase 3 soak ended 2026-09-06, C6 coverage NOT met (93.9%, §7.5 C9); Phase 4 decided (`docs/PHASE4-PREREG.md`); holdout sealed by decision (REPORT §1.2)
 **Companion docs:** REVIEW.md (the adversarial review this version answers) · docs/STRESS-TEST-2026-08-25.md (second review, against the ledger) · docs/REPORT.md
 **Reading rule:** sections 1–10 are the frozen v0.3 text and contain stale statements. Appendix D lists every one with its current truth. §7.5 is the only section that grows.
 
@@ -560,6 +560,21 @@ later reader, from a rule that was quietly tightened or loosened.
   flag, universe, headline metrics — excluded from N. REPORT numbers computed
   before this date are reproducible from Appendix A but were not recorded when
   produced; the stress test says so.
+- **C9 — 2026-09-25 — soak verdict under C6: NOT MET (93.9% < 95%).** Recorded
+  19 days late; the rule is applied as written on 08-25, not re-read. Window
+  2026-08-07 00:02Z → 2026-09-06 00:02Z = 720 hourly candles; the declared
+  47 h outage removes 47 → 673 due. **632 ticks ran live** (88 more were
+  replayed by catch-up, which decides the candle but cannot fill it live —
+  see the 08-23 `mirror-skip-stale`, so they are not "observed"). Misses: host
+  asleep 08-22 16Z→08-23 11Z (18) and 08-31 20Z→09-01 08Z (11), kill-switch
+  drill 08-09/10 (9), short/DNS misses 08-07, 08-12, 08-24 (4). Excluding the
+  drill as a deliberate halt gives 632/664 = 95.2% — a PASS — but C6 was written
+  after the drill, named only one outage, and choosing the carve-out after
+  seeing it flips the verdict is exactly what §7.5 exists to stop. Not adopted.
+  Consequence: nothing downstream is gated on the soak except the start of
+  Phase 4, which is observability-only and adds no trials, so it proceeds. What
+  the soak did establish is §8's warning: the dev laptop sleeps, silently —
+  the dead-man's ping (C-list, `HEALTHCHECK_PING_URL`) was never deployed.
 
 ---
 

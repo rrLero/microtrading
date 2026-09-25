@@ -61,19 +61,20 @@ Typecheck without emitting: `cd apps/agent && ./node_modules/.bin/tsc -p tsconfi
 See `docs/WORKLOG.md` for the running log of what has been done and why.
 Update it after every significant operational or engineering change.
 
-## Operational state (as of 2026-08-24 — update when it changes)
+## Operational state (as of 2026-09-25 — update when it changes)
 
 - Agent runs in Docker on this Mac (`docker-compose.local.yml`, same compose
   project + `pgdata` volume as dev compose → data is shared with host tooling
   on port 55432). Dashboard runs separately via `pnpm --filter @microtrading/dashboard dev`.
-- Phase 3 soak in progress: strategy `donchian-breakout(40,10)` on BTC/USDC 4h,
-  paper account started 2026-08-07 with 10,000 USDC. **Soak ends 2026-09-06
-  00:02Z** (SPEC §7.5 C6: 28 days at ≥95% tick coverage; the 47.4h outage of
-  08-18→08-20 extends it — NOT 09-04). Position: LONG since 2026-08-25 04:02Z
-  (0.01263 BTC @ 80,505.04, stop 78,011.03); one signal round trip closed
-  08-23 (+17.1% price). Re-read `/api/status` before quoting.
+- **Phase 3 soak ENDED 2026-09-06 00:02Z — C6 coverage NOT met: 632/673 live
+  ticks = 93.9% < 95%** (SPEC §7.5 C9; do not re-litigate the drill carve-out).
+  Cause: this Mac sleeps (08-22/23 18 ticks, 08-31/09-01 11 ticks), silently —
+  no dead-man ping deployed. The loop keeps running post-soak:
+  `donchian-breakout(40,10)` on BTC/USDC 4h, paper account from 2026-08-07 with
+  10,000 USDC; flat, equity 10,143.47 after the 09-18→09-23 round trip
+  (+39.70 net). Re-read `/api/status` before quoting.
 - **2026-08-25 stress test applied** (`docs/STRESS-TEST-2026-08-25.md`). Read
-  SPEC §7.5 **D0** and **C1–C8** and SPEC **Appendix D (errata)** before
+  SPEC §7.5 **D0** and **C1–C9** and SPEC **Appendix D (errata)** before
   trusting any sentence in SPEC §§1–10 — the frozen text is stale in ~20
   places and Appendix D maps each to the current truth. Highlights that bind:
   - `HOLDOUT_FROM` is PINNED at 2025-08-01 (C4); one holdout evaluation TOTAL.
@@ -143,8 +144,10 @@ Update it after every significant operational or engineering change.
   Do not widen scope again; if results disappoint, §7.4's stopping rule applies.
 - Holdout remains SEALED (boundary pinned 2025-08-01, C4). Do not evaluate it
   without an explicit human decision; REPORT §1.2 records it will not be.
-- **Phase 4 (LLM analyst) is DECIDED, starting after the soak completes
-  2026-09-06** (human decision 2026-08-25, logged in WORKLOG before any LLM
+- **Phase 4 (LLM analyst) is BUILT and deployed OFF (2026-09-25)**: model
+  `claude-opus-5-5` (PREREG Amendment 1); enable with `ANTHROPIC_API_KEY` +
+  `ENABLE_LLM_ANALYST=true` in `.env`. Originally decided to start after the soak
+  completes 2026-09-06 (human decision 2026-08-25, logged in WORKLOG before any LLM
   output existed; pre-registration in `docs/PHASE4-PREREG.md` — read it, it
   pins schema, model, triggers, cost cap and the no-prompt-hunting rule). **Scope is OBSERVABILITY ONLY: the analyst journals regime
   commentary, context features and post-trade reviews; NO strategy consumes

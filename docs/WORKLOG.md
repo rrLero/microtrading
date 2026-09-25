@@ -890,10 +890,69 @@ probe work uncovered a silent mirror bug.
 - Axis 4 strategy population 4 → 6 pairs; total deviation +226.9% → +180.6%,
   still FAIL. Most of it is timing, not spread: paper prices at the candle open
   (:00) or the stop level, demo market-orders at :02 (09-23 exit: 0.35%).
-- Open, not fixed: axis 3 prints "NOT EVALUABLE — no complete pairs" with 92
-  pairs, because `mechanicsOk` requires `mirrorErrors === 0` and the 09-20 DNS
-  outage produced one.
-- Hazard noted: every CLI boots the full AppModule, and the host `.env` has
-  `ENABLE_TRADING_LOOP=true` — a CLI alive at :02 would tick a second loop.
-  Ran the backfill with `-e ENABLE_TRADING_LOOP=false -e ENABLE_CALIBRATION_PROBE=false`.
-- Two planned agent restarts ~16:28Z/16:29Z, between ticks.
+- Axis 3 printed "NOT EVALUABLE — no complete pairs" with 92 pairs:
+  `mechanicsOk` required `mirrorErrors === 0` and the 09-20 DNS outage produced
+  one. Fixed (`ee25224`): errors that never reached the venue (DNS/timeout/
+  connection) are counted apart; only venue errors FAIL the axis. Now PASS.
+- Hazard fixed (`ee25224`): every CLI booted the full AppModule incl.
+  `ScheduleModule`, and the host `.env` has `ENABLE_TRADING_LOOP=true` — a CLI
+  alive at :02 would tick a second paper loop (and :07/13:37 would duplicate
+  samples/probes). The scheduler is now registered only via
+  `AppModule.withScheduler()` in `main.ts`. (The backfill itself had been run
+  with the loop/probe flags overridden to false.)
+- Three planned agent restarts 16:28Z–16:31Z, between ticks.
+
+## 2026-09-25 (b) — Soak verdict (C6): NOT MET, 93.9% live tick coverage
+
+- Nothing was logged between 08-25 and today; the soak ended 09-06 00:02Z with
+  no verdict recorded. Computed now from the journal, applying C6 as written:
+  720 candles in the window, minus the declared 47 h outage = 673 due; 632 ran
+  live (88 replayed by catch-up — decided, but never fillable live). **93.9%.**
+- Misses: host asleep 08-22 16Z→08-23 11Z (18; the :07 sampler fired once in
+  19 h, so the whole Docker VM was paused) and 08-31 20Z→09-01 08Z (11, never
+  logged at the time); kill-switch drill 08-09/10 (9); 08-07, 08-12, 08-24 (4).
+- Excluding the drill would read 632/664 = 95.2% (PASS). **Not adopted**: C6
+  was written after the drill and named one outage; picking the reading that
+  flips the verdict after seeing it is the §7.5 timing problem. Recorded as
+  SPEC §7.5 C9. Decided under the 08-25 delegation (memory: decide protocol
+  calls from the sources, log, proceed).
+- Consequence: Phase 4 is observability-only (N unchanged) and not gated on
+  the verdict → proceeds, 19 days late. The real lesson is §8's: this Mac is
+  not an ops platform, and its sleeps are silent without the dead-man ping.
+
+## 2026-09-25 (c) — REPORT §10/§12 written; calibrate-report sign bug
+
+- REPORT is FINAL for V1: §10 (infrastructure result, C9 verdict, miss table),
+  §10.1 row "unattended ≥4 weeks" → Unmet, §12 conclusion, stale soak prose
+  fixed. This was the last precondition PHASE4-PREREG §0 sets for Phase 4.
+- **Bug, found while writing §10:** `calibrate-report` measured demo slippage
+  as `|demoAvg − ref|`. Favourable drift was booked as cost: the 08-25 stop exit
+  sold 654 USD ABOVE its reference and counted +8.26 USDC. Now signed
+  implementation shortfall (Perold 1988; buy +, sell −). Strategy axis:
+  +948% "model under-charges" → **−128%, model over-charges** — still FAIL
+  under |dev| ≤ 30%, so the fix does not flip the verdict, it flips the
+  direction. Four of six strategy fills were favourable; it is ~2-minute
+  timing drift after the candle open, n=6, evidence of nothing. Probe
+  slippage signed ≈ 0 (demo fills at last with zero spread, as known).
+  Earlier today I told the human the reverse from the |·| numbers; corrected.
+- Host `pmset`: AC `sleep 0`, battery `sleep 1` — the soak's misses are
+  battery/lid sleeps. Fix needs sudo or a VPS; left to the human.
+
+## 2026-09-25 (d) — Phase 4 analyst built and deployed OFF
+
+- Preconditions (PHASE4-PREREG §0) met today: soak ended, REPORT §10 written.
+- **Model changed to `claude-opus-5-5` by human decision**, before any call —
+  PHASE4-PREREG Amendment 1, which also records `max_tokens` 4,000 (thinking
+  counts toward it), 60 s timeout, and no refusal fallback (it would change the
+  model inside the series).
+- `apps/agent/src/analyst/`: polls the journal every 5 min for fill / risk /
+  kill-switch / stale-data-halt rows; daily commentary at 06:10Z. The loop is
+  untouched and has no reference to it; the module does not import
+  TradingModule, so there is no path to the broker or kill switch. Caps in code:
+  50 calls/UTC day, 8k input (`countTokens` first). Structured output via
+  `output_config.format` json_schema; provenance hashes on every row. First
+  start sets the cursor to the journal's end — no past events are analysed.
+  Routing checked 10/10 against the built module; no API call has been made.
+- Deployed with `ENABLE_LLM_ANALYST` unset → inert. **To start the forward
+  clock the human adds `ANTHROPIC_API_KEY` and `ENABLE_LLM_ANALYST=true` to
+  `apps/agent/.env` and redeploys.** Added dependency: `@anthropic-ai/sdk` 0.128.
