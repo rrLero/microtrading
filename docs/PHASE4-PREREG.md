@@ -182,3 +182,28 @@ help — the forward clock started on <date>."* That sentence is the deliverable
    required); 30 days of closed 4h candles, the channel bounds, the account row,
    the triggering row, and 30 days of `fill`/`risk` rows.
 
+
+### Amendment 2 — 2026-09-25, before any Jev call: TypeSafe guardrail on analyst rows
+
+Human decision 2026-09-25 (key provisioned as `TYPESAFE_API_KEY`). Adds a
+**check on the analyst, not a feature**: nothing reads it, it never blocks,
+edits or re-asks the analyst — re-asking until a check passes would be exactly
+the output selection §4 forbids.
+
+- After every `kind='analyst'` row, one TypeSafe System One call, model
+  **pinned `jev-1.13.0`** (the `jev-latest` alias moves on release). State =
+  the analyst's `regime` / `commentary` / `review` plus the exact `inputs` it
+  was given. Three yes/no questions (Noul), fixed text in
+  `apps/agent/src/analyst/analyst.service.ts` `CHECKS`, hashed on every row:
+  `predictsPrice`, `recommendsTrade` (both forbidden by the system prompt and
+  §0) and `contradictsInputs`.
+- Journaled as `kind='analyst-check'` with the three probabilities, the served
+  model id, `questionsHash`, input tokens and cost ($0.042/MTok input, output
+  free — ~$0.0003 per check). Failures → `ops/analyst-check-error`.
+- **No threshold is set now and none will be tuned on this data.** The
+  probabilities are reported as-is in REPORT §13; a human reading a flagged row
+  decides. Question text counts against §4's cap of ≤ 3 versions, separately
+  from the analyst prompt.
+- Integration smoke test on two synthetic analyses (not journaled, not part of
+  the series) is permitted to verify wiring; its numbers are not used for
+  anything.

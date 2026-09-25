@@ -956,3 +956,22 @@ probe work uncovered a silent mirror bug.
 - Deployed with `ENABLE_LLM_ANALYST` unset → inert. **To start the forward
   clock the human adds `ANTHROPIC_API_KEY` and `ENABLE_LLM_ANALYST=true` to
   `apps/agent/.env` and redeploys.** Added dependency: `@anthropic-ai/sdk` 0.128.
+
+## 2026-09-25 (e) — TypeSafe Jev guardrail on analyst rows (Amendment 2)
+
+- Evaluated TypeSafe (docs.typesafe.ai): typed yes/no / choice / score
+  judgments with trained-calibrated probabilities, $0.042/MTok input, text
+  only. Rejected for anything a strategy reads (new family, N) and for numeric
+  work code already does (regime.ts, spread sampler). Adopted as a CHECK on the
+  analyst: PHASE4-PREREG Amendment 2 written before the first call.
+- `analyst-check` rows after every analyst row: `predictsPrice`,
+  `recommendsTrade`, `contradictsInputs`; pinned `jev-1.13.0`; never blocks
+  or re-asks. Gated on `TYPESAFE_API_KEY` (present in the container) — inert
+  until the analyst itself is enabled.
+- Smoke test, synthetic, not journaled: clean 0.13 / 0.09 / 0.08, deliberately
+  violating 0.99 / 0.98 / **0.59**, ~0.7 s, ~610 tokens. The language checks
+  are sharp; the numeric-contradiction check is weak (91,200 claimed vs
+  83,800.9 given scored only 0.59) — a text model reading numbers, as expected.
+  No threshold set, per the amendment.
+- Redeployed ~16:52Z during the kill-switch drill; the flag survived the
+  restart.

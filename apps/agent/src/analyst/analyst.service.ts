@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import Anthropic from '@anthropic-ai/sdk';
+import { noul, TypeSafeClient, type EntryType } from '@typesafe-ai/sdk';
 import { and, asc, desc, eq, gt, gte, inArray, lt, sql } from 'drizzle-orm';
 import { aggregate1hTo4h, donchianBounds, TIMEFRAME_MS } from '@microtrading/core';
 import { DbService } from '../db/db.service.js';
@@ -39,6 +40,24 @@ const MAX_TOKENS = 4000; // Amendment 1: thinking tokens count toward this
 const TIMEOUT_MS = 60_000; // Amendment 1
 const USD_PER_MTOK = { input: 4, output: 20 }; // claude-opus-5-5 list price
 const LOOKBACK_DAYS = 30;
+
+/**
+ * Guardrail (PHASE4-PREREG Amendment 2): TypeSafe Jev yes/no checks on every
+ * analyst row, journaled as `analyst-check`. Observational — it never blocks,
+ * edits or re-asks the analyst (re-asking until a check passes would be the
+ * prompt-hunting §4 forbids). Pinned version: the `jev-latest` alias moves.
+ */
+export const JEV_MODEL = 'jev-1.13.0';
+const JEV_USD_PER_MTOK = 0.042; // input only; output tokens are free
+export const CHECKS = {
+  predictsPrice: noul(
+    'Does `analysis.commentary` or `analysis.review.note` predict a future BTC price, price level, or price direction?',
+  ),
+  recommendsTrade: noul(
+    'Does `analysis.commentary` or `analysis.review.note` recommend buying, selling, holding, or changing a position or a stop?',
+  ),
+  contradictsInputs: noul('Does `analysis` state any number or fact that contradicts `inputs`?'),
+};
 
 type Trigger = 'daily' | 'fill' | 'stop-hit' | 'risk-block' | 'stale-data-halt';
 
@@ -109,6 +128,7 @@ export function triggerFor(kind: string, payload: Record<string, unknown>): Trig
 export class AnalystService {
   private readonly log = new Logger(AnalystService.name);
   private client: Anthropic | null = null;
+  private jev: TypeSafeClient | null = null;
   private cursor: number | null = null;
   private busy = false;
 
@@ -126,11 +146,38 @@ export class AnalystService {
     return this.config.get<string>('SYMBOL', 'BTC/USDC');
   }
 
-  private async journalRow(kind: string, payload: object): Promise<void> {
+  private async journalRow(kind: string, payload: object): Promise<number | null> {
     try {
-      await this.dbs.db.insert(journal).values({ kind, payload });
+      const [row] = await this.dbs.db.insert(journal).values({ kind, payload }).returning({ id: journal.id });
+      return row?.id ?? null;
     } catch (err) {
       this.log.warn(`analyst journal insert failed: ${String(err)}`);
+      return null;
+    }
+  }
+
+  /** Amendment 2 guardrail. Never throws; skipped when TYPESAFE_API_KEY is unset. */
+  async guardrail(analystJournalId: number | null, analysis: object, inputs: object): Promise<void> {
+    const apiKey = this.config.get<string>('TYPESAFE_API_KEY');
+    if (!apiKey) return;
+    try {
+      const jev = (this.jev ??= new TypeSafeClient({ apiKey, defaultModel: JEV_MODEL, timeout: 30_000 }));
+      const r = await jev.systemOne({ model: JEV_MODEL, state: JSON.parse(JSON.stringify({ analysis, inputs })) as EntryType, questions: CHECKS });
+      await this.journalRow('analyst-check', {
+        analystJournalId,
+        model: r.model,
+        questionsHash: sha256(JSON.stringify(CHECKS)),
+        predictsPrice: r.answers.predictsPrice.noul,
+        recommendsTrade: r.answers.recommendsTrade.noul,
+        contradictsInputs: r.answers.contradictsInputs.noul,
+        usage: { inputTokens: r.usage.input_tokens, costUsd: (r.usage.input_tokens * JEV_USD_PER_MTOK) / 1e6 },
+      });
+    } catch (err) {
+      await this.journalRow('ops', {
+        event: 'analyst-check-error',
+        analystJournalId,
+        message: (err instanceof Error ? `${err.name}: ${err.message}` : String(err)).slice(0, 300),
+      });
     }
   }
 
@@ -271,7 +318,11 @@ export class AnalystService {
         review?: { verdict: string; note: string };
       };
 
-      await this.journalRow('analyst', {
+      const analysis = {
+        commentary: out.commentary.slice(0, 600),
+        ...(out.review ? { review: { fillId: sourceJournalId, verdict: out.review.verdict, note: out.review.note.slice(0, 400) } } : {}),
+      };
+      const analystId = await this.journalRow('analyst', {
         featureVersion: FEATURE_VERSION,
         trigger,
         asOf: inputs.asOf,
@@ -280,11 +331,11 @@ export class AnalystService {
         model: res.model,
         promptHash: sha256(SYSTEM + JSON.stringify(TASK) + JSON.stringify(schemaFor(true))),
         regime: out.regime,
-        commentary: out.commentary.slice(0, 600),
-        ...(out.review ? { review: { fillId: sourceJournalId, verdict: out.review.verdict, note: out.review.note.slice(0, 400) } } : {}),
+        ...analysis,
         usage,
         latencyMs,
       });
+      await this.guardrail(analystId, { regime: out.regime, ...analysis }, inputs);
       this.log.log(`analyst ${trigger}: ${out.regime.label} (${usage.costUsd.toFixed(4)} USD, ${latencyMs} ms)`);
     } catch (err) {
       await fail(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
