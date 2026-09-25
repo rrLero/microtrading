@@ -9,7 +9,7 @@ import { AppModule } from './app.module.js';
  * watchdogs every 15 min; read-only HTTP API on PORT (default 3001).
  */
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { logger: ['log', 'warn', 'error'] });
+  const app = await NestFactory.create(AppModule.withScheduler(), { logger: ['log', 'warn', 'error'] });
   app.enableShutdownHooks();
   const config = app.get(ConfigService);
   const log = new Logger('bootstrap');

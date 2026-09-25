@@ -138,6 +138,7 @@ async function main(): Promise<void> {
     let skippedStale = 0;
     let skippedDisabled = 0;
     let mirrorErrors = 0;
+    let networkErrors = 0; // never reached the venue — says nothing about order mechanics
     let probesRun = 0;
     let probesSkipped = 0;
     const spreadSamples: SpreadSample[] = [];
@@ -152,7 +153,10 @@ async function main(): Promise<void> {
       }
       if (r.kind === 'ops' && p['event'] === 'mirror-skip-stale') skippedStale += 1;
       if (r.kind === 'ops' && p['event'] === 'mirror-skip-disabled') skippedDisabled += 1;
-      if (r.kind === 'ops' && p['event'] === 'mirror-error') mirrorErrors += 1;
+      if (r.kind === 'ops' && p['event'] === 'mirror-error') {
+        mirrorErrors += 1;
+        if (/EAI_AGAIN|ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|NetworkError|RequestTimeout/i.test(String(p['message'] ?? ''))) networkErrors += 1;
+      }
       if (r.kind === 'ops' && p['event'] === 'calibration-probe') probesRun += 1;
       if (r.kind === 'ops' && (p['event'] === 'probe-skip-disabled' || p['event'] === 'probe-skip-kill-switch')) probesSkipped += 1;
       if (r.kind === 'ops' && p['event'] === 'spread-sample') spreadSamples.push(p as unknown as SpreadSample);
@@ -193,7 +197,7 @@ async function main(): Promise<void> {
     console.log(`Calibration probes run:  ${probesRun}  (skipped ${probesSkipped})`);
     console.log(`Mirrors skipped (stale): ${skippedStale}`);
     console.log(`Mirrors skipped (off):   ${skippedDisabled}`);
-    console.log(`Mirror errors:           ${mirrorErrors}`);
+    console.log(`Mirror errors:           ${mirrorErrors}  (network, venue never reached: ${networkErrors})`);
     console.log(`Recovered by readback:   ${readbacks.size}  (backfill-demo-readback; price from the order record)`);
 
     if (demoFills.length === 0) {
@@ -269,9 +273,18 @@ async function main(): Promise<void> {
     }
 
     console.log(`\n3. MECHANICS (what demo CAN prove — orders, fills, read-back, fee currency)`);
-    const mechanicsOk = mirrorErrors === 0 && liveProbe.length + liveStrategy.length > 0;
-    console.log(`   ${liveProbe.length + liveStrategy.length} complete pair(s) at the current basis, ${mirrorErrors} mirror error(s)`);
-    console.log(`   ${mechanicsOk ? 'PASS — orders route, fill, and read back.' : 'NOT EVALUABLE — no complete pairs at this basis yet.'}`);
+    const complete = liveProbe.length + liveStrategy.length;
+    const venueErrors = mirrorErrors - networkErrors;
+    console.log(`   ${complete} complete pair(s) at the current basis, ${venueErrors} venue error(s), ${networkErrors} network error(s)`);
+    console.log(
+      `   ${
+        complete === 0
+          ? 'NOT EVALUABLE — no complete pairs at this basis yet.'
+          : venueErrors > 0
+            ? `FAIL — the venue rejected or broke ${venueErrors} mirror(s); read the ops/mirror-error rows.`
+            : 'PASS — orders route, fill, and read back.'
+      }`,
+    );
 
     console.log(`\n4. FILL-MODEL vs VENUE (the original §6.3 aggregate)`);
     if (gateDev === null) {
