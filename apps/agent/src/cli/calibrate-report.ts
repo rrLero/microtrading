@@ -11,8 +11,12 @@ import { journal } from '../db/schema.js';
  * Pairs every 'demo-fill' journal row with its paper 'fill' (via paperFillId)
  * and compares modeled execution cost against Bybit demo reality:
  *
- *   modeled cost = |paperFillPrice − refPrice| · qty + paperFee     (slippage + fee)
- *   actual  cost = |demoAvgPrice  − refPrice| · demoQty + demoFee
+ *   modeled cost = side·(paperFillPrice − refPrice) · qty + paperFee   (slippage + fee)
+ *   actual  cost = side·(demoAvgPrice  − refPrice) · demoQty + demoFee
+ *   side = +1 buy, −1 sell: SIGNED implementation shortfall (Perold 1988), so a
+ *   fill better than the reference is a negative cost. Until 2026-09-25 this was
+ *   |·|, which booked favourable drift as slippage — the 08-25 stop exit sold
+ *   654 USD ABOVE its reference and was reported as 8.26 USDC of cost.
  *
  * Gate (SPEC §6.3): if aggregate modeled costs deviate >30% relative from demo
  * fills over ≥2 weeks of parallel running, fix the PaperAdapter before trusting
@@ -182,9 +186,9 @@ async function main(): Promise<void> {
         side: p.side,
         qty,
         refPrice: p.refPrice,
-        modeledSlip: Math.abs(p.paper.fillPrice - p.refPrice) * qty,
+        modeledSlip: (p.side === 'buy' ? 1 : -1) * (p.paper.fillPrice - p.refPrice) * qty,
         modeledFee: p.paper.fee,
-        actualSlip: Math.abs(p.demoAvgPrice - p.refPrice) * qty,
+        actualSlip: (p.side === 'buy' ? 1 : -1) * (p.demoAvgPrice - p.refPrice) * qty,
         actualFee: p.demoFeeUsdc ?? 0,
         impliedTakerRate: paperNotional > 0 ? p.paper.fee / paperNotional : 0,
         impliedDemoRate: demoNotional > 0 ? (p.demoFeeUsdc ?? 0) / demoNotional : 0,
