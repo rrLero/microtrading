@@ -150,3 +150,35 @@ help — the forward clock started on <date>."* That sentence is the deliverable
 ## Amendments
 
 *(none yet — append below with date and reason; never edit above)*
+
+### Amendment 1 — 2026-09-25, before any LLM call (featureVersion 1 unchanged: no call has run under the original text)
+
+1. **Model: `claude-opus-5` → `claude-opus-5-5`.** Human decision, 2026-09-25.
+   Same Opus line, list price $5 / $25 → **$4 / $20** per MTok; budget in §5
+   falls accordingly. Opus 5.5's thinking cannot be disabled and its default
+   effort is `medium`; `effort: "medium"` stays pinned explicitly. **No refusal
+   fallback is configured**: a fallback would silently change the model inside
+   the series and break §4's provenance — a refusal is journaled as
+   `ops/analyst-error` instead.
+2. **Output cap: 1.5k → `max_tokens` 4,000.** Adaptive thinking tokens count
+   toward `max_tokens`; at 1.5k a `medium`-effort reply risks `max_tokens`
+   truncation, which under structured outputs is an error, not a shorter note.
+   Worst case at the 50-call/day cap: 50 × (8k × $4 + 4k × $20)/1M ≈ $5.6/day;
+   expected ~40 calls/month ≈ $1–3/month. The ≤ 8k input cap and ≤ 50 calls/UTC
+   day are unchanged and enforced in code (`countTokens` before every call).
+3. **Timeout: 30 s → 60 s, no retries.** The 30 s figure protected the loop;
+   the loop no longer waits on the analyst at all (item 4), so the timeout only
+   bounds spend and staleness.
+4. **Mechanism of "fire-and-forget" (§7):** the loop does not call the
+   analyst. The analyst polls the journal every 5 minutes for the trigger rows
+   the loop already writes (`fill`, `risk`, `ops/kill-switch`,
+   `ops/stale-data-halt`), so the trading loop has no reference to it and no
+   code in the loop changed. Stricter than §7, not looser. Fill reviews land
+   ≤ 5 min after the fill instead of immediately.
+5. **Kill switch (§8) rows are markers, not calls:** `ops/analyst-paused` /
+   `ops/analyst-resumed`. A stop fill produced by the kill switch itself
+   (`kill-switch flatten`) is not reviewed.
+6. **Inputs (§2) in v1:** BTC/USDC only (the universe is permitted, not
+   required); 30 days of closed 4h candles, the channel bounds, the account row,
+   the triggering row, and 30 days of `fill`/`risk` rows.
+

@@ -28,6 +28,7 @@
     "test": "echo \"agent tests come with Phase 2 (risk engine)\" && exit 0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@microtrading/core": "workspace:*",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",

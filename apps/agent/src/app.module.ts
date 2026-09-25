@@ -6,6 +6,7 @@ import { MarketDataModule } from './market-data/market-data.module.js';
 import { ExperimentsModule } from './experiments/experiments.module.js';
 import { TradingModule } from './trading/trading.module.js';
 import { OpsModule } from './ops/ops.module.js';
+import { AnalystModule } from './analyst/analyst.module.js';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { OpsModule } from './ops/ops.module.js';
     ExperimentsModule,
     TradingModule,
     OpsModule,
+    AnalystModule,
   ],
 })
 export class AppModule {
