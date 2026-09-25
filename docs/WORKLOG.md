@@ -868,3 +868,32 @@ probe work uncovered a silent mirror bug.
 - The Next.js dev overlay's "1 issue" is a hydration warning from
   `data-locator-target="webstorm"` injected into `<html>` by the WebStorm
   browser extension — not project code, ignore.
+
+## 2026-09-25 — Demo mirror read-back: recover lost strategy fills
+
+- `/soak-check` found 20 hourly `tick-error`s 2026-09-20 11:02Z → 09-21 06:02Z
+  (`getaddrinfo EAI_AGAIN api.bybit.com` — host DNS, not the code) plus one probe
+  `mirror-error` at 09-20 13:37Z. The 7-day decision count is 168/168 afterwards,
+  i.e. the ticks were replayed on recovery. Logged here; not investigated further.
+- **3 of 7 strategy mirrors had null price/fee** (`readbackTrades: 0`): 08-18,
+  09-18, 09-23 — all at **16:02Z**; the 4 at other hours read back in 2–9 s.
+  Queried afterwards, Bybit demo shows the orders executed in 0.6–1.3 s, yet
+  `fetchMyTrades` returned nothing for the whole 60 s budget (no errors in the
+  logs). The 08-20 budget raise 25 s → 60 s did not fix it. `fetchOrder(…,
+  {acknowledged: true})` carries avgPrice and cumExecFee for the same orders.
+- Fix (`25f9512` + follow-up): `mirrorFill` falls back to `readbackOrder()`
+  and journals `readbackSource`; new `backfill-demo-readback` CLI appends
+  `demo-fill-readback` rows (append-only, idempotent); `calibrate-report`
+  overlays them. Recovered 09-18 buy @ 80,669.5 and 09-23 sell @ 83,703.2.
+  **Unrecoverable:** the 08-18 entry and 4 probes from 08-11/12 — demo no longer
+  returns orders that old (~30-day retention, observed).
+- Axis 4 strategy population 4 → 6 pairs; total deviation +226.9% → +180.6%,
+  still FAIL. Most of it is timing, not spread: paper prices at the candle open
+  (:00) or the stop level, demo market-orders at :02 (09-23 exit: 0.35%).
+- Open, not fixed: axis 3 prints "NOT EVALUABLE — no complete pairs" with 92
+  pairs, because `mechanicsOk` requires `mirrorErrors === 0` and the 09-20 DNS
+  outage produced one.
+- Hazard noted: every CLI boots the full AppModule, and the host `.env` has
+  `ENABLE_TRADING_LOOP=true` — a CLI alive at :02 would tick a second loop.
+  Ran the backfill with `-e ENABLE_TRADING_LOOP=false -e ENABLE_CALIBRATION_PROBE=false`.
+- Two planned agent restarts ~16:28Z/16:29Z, between ticks.

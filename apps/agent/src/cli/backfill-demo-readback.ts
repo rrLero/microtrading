@@ -37,7 +37,14 @@ async function main(): Promise<void> {
 
     for (const r of missing) {
       const p = r.payload as { demoOrderId: string; symbol: string; side: string };
-      const got = await mirror.readbackOrder(String(p.demoOrderId), p.symbol);
+      let got: Awaited<ReturnType<BybitDemoMirrorService['readbackOrder']>>;
+      try {
+        got = await mirror.readbackOrder(String(p.demoOrderId), p.symbol);
+      } catch (err) {
+        // e.g. demo no longer retains old orders — leave that fill excluded
+        console.log(`#${r.id} order ${p.demoOrderId}: ${err instanceof Error ? err.message.slice(0, 80) : String(err)}`);
+        continue;
+      }
       if (!got) {
         console.log(`#${r.id} order ${p.demoOrderId}: not filled on the venue — nothing to recover`);
         continue;
