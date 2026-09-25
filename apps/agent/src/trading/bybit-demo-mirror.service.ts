@@ -141,13 +141,17 @@ export class BybitDemoMirrorService {
       const trades = await this.executionTrades(ex, p.symbol, String(created.id));
       const tradedQty = trades.reduce((a, t) => a + (t.amount ?? 0), 0);
       const notional = trades.reduce((a, t) => a + (t.cost ?? (t.price ?? 0) * (t.amount ?? 0)), 0);
-      const filledQty = tradedQty > 0 ? tradedQty : (created.filled ?? amount);
+      // Execution list stayed empty → ask the order record (see readbackOrder).
+      const fromOrder = trades.length === 0 ? await this.readbackOrder(String(created.id), p.symbol).catch(() => null) : null;
+      const filledQty = tradedQty > 0 ? tradedQty : (fromOrder?.filledQty ?? created.filled ?? amount);
       const avgPrice =
-        tradedQty > 0 && notional > 0 ? notional / tradedQty : (created.average ?? created.price ?? null);
+        tradedQty > 0 && notional > 0
+          ? notional / tradedQty
+          : (fromOrder?.avgPrice ?? created.average ?? created.price ?? null);
       const feeUsdc =
         trades.length > 0
           ? this.feeInQuote({ fees: trades.map((t) => t.fee) }, avgPrice ?? p.refPrice, p.symbol)
-          : null;
+          : (fromOrder?.feeUsdc ?? null);
 
       await this.journalEvent('demo-fill', {
         paperFillId: p.paperFillId,
@@ -156,7 +160,8 @@ export class BybitDemoMirrorService {
         symbol: p.symbol,
         side: p.side,
         requestedQty: amount,
-        readbackTrades: trades.length, // 0 ⇒ price/fee are unusable; the pair is excluded from the report
+        readbackTrades: trades.length, // 0 and readbackSource null ⇒ price/fee unusable; excluded from the report
+        readbackSource: trades.length > 0 ? 'trades' : fromOrder ? 'order' : null,
         demoOrderId: created.id,
         demoAvgPrice: avgPrice,
         demoFilledQty: filledQty,
@@ -296,6 +301,21 @@ export class BybitDemoMirrorService {
       );
     }
     return [];
+  }
+
+  /**
+   * The order record's own average price, filled qty and fee — the fallback
+   * when the execution list stays empty. It did for the whole budget on the
+   * 08-18, 09-18 and 09-23 strategy fills (all 16:02Z) although each executed
+   * within ~1s; queried afterwards, the order carried avgPrice and cumExecFee.
+   * Also used by the backfill-demo-readback CLI. Null if the order is not filled.
+   */
+  async readbackOrder(orderId: string, symbol: string): Promise<{ avgPrice: number; filledQty: number; feeUsdc: number | null } | null> {
+    const ex = await this.client();
+    const o = await ex.fetchOrder(orderId, symbol, { acknowledged: true });
+    if (!o.average || !o.filled) return null;
+    // Only o.fee: ccxt repeats it in an (untyped) o.fees and feeInQuote would sum both.
+    return { avgPrice: o.average, filledQty: o.filled, feeUsdc: this.feeInQuote({ fee: o.fee }, o.average, symbol) };
   }
 
   private async lastPrice(ex: Exchange, symbol: string): Promise<number> {

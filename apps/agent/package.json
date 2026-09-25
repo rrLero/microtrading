@@ -18,6 +18,7 @@
     "run-universe": "node --env-file=.env dist/cli/run-universe.js",
     "cost-sensitivity": "node --env-file=.env dist/cli/cost-sensitivity.js",
     "status": "node --env-file=.env dist/cli/status.js",
+    "backfill-demo-readback": "node --env-file=.env dist/cli/backfill-demo-readback.js",
     "calibrate-report": "node --env-file=.env dist/cli/calibrate-report.js",
     "calibration-probe": "node --env-file=.env dist/cli/calibration-probe.js",
     "demo-ping": "node --env-file=.env dist/cli/demo-ping.js",

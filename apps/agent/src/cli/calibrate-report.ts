@@ -121,8 +121,17 @@ async function main(): Promise<void> {
     const rows = await dbs.db
       .select()
       .from(journal)
-      .where(inArray(journal.kind, ['fill', 'demo-fill', 'ops']))
+      .where(inArray(journal.kind, ['fill', 'demo-fill', 'demo-fill-readback', 'ops']))
       .orderBy(asc(journal.id));
+
+    // Append-only corrections from backfill-demo-readback, keyed by demo-fill id.
+    const readbacks = new Map<number, Pick<DemoFillPayload, 'demoAvgPrice' | 'demoFilledQty' | 'demoFeeUsdc'>>();
+    for (const r of rows) {
+      if (r.kind === 'demo-fill-readback') {
+        const p = r.payload as { demoFillId: number } & Pick<DemoFillPayload, 'demoAvgPrice' | 'demoFilledQty' | 'demoFeeUsdc'>;
+        readbacks.set(p.demoFillId, { demoAvgPrice: p.demoAvgPrice, demoFilledQty: p.demoFilledQty, demoFeeUsdc: p.demoFeeUsdc });
+      }
+    }
 
     const paperFills = new Map<number, { at: Date }>();
     const demoFills: { at: Date; p: DemoFillPayload }[] = [];
@@ -136,7 +145,11 @@ async function main(): Promise<void> {
     for (const r of rows) {
       const p = r.payload as Record<string, unknown>;
       if (r.kind === 'fill') paperFills.set(r.id, { at: r.at });
-      if (r.kind === 'demo-fill') demoFills.push({ at: r.at, p: p as unknown as DemoFillPayload });
+      if (r.kind === 'demo-fill') {
+        const d = p as unknown as DemoFillPayload;
+        const rb = d.demoAvgPrice === null ? readbacks.get(r.id) : undefined;
+        demoFills.push({ at: r.at, p: rb ? { ...d, ...rb } : d });
+      }
       if (r.kind === 'ops' && p['event'] === 'mirror-skip-stale') skippedStale += 1;
       if (r.kind === 'ops' && p['event'] === 'mirror-skip-disabled') skippedDisabled += 1;
       if (r.kind === 'ops' && p['event'] === 'mirror-error') mirrorErrors += 1;
@@ -181,6 +194,7 @@ async function main(): Promise<void> {
     console.log(`Mirrors skipped (stale): ${skippedStale}`);
     console.log(`Mirrors skipped (off):   ${skippedDisabled}`);
     console.log(`Mirror errors:           ${mirrorErrors}`);
+    console.log(`Recovered by readback:   ${readbacks.size}  (backfill-demo-readback; price from the order record)`);
 
     if (demoFills.length === 0) {
       console.log('\nNo demo fills yet — the comparison starts with the next fresh paper fill or calibration probe.');
