@@ -975,3 +975,34 @@ probe work uncovered a silent mirror bug.
   No threshold set, per the amendment.
 - Redeployed ~16:52Z during the kill-switch drill; the flag survived the
   restart.
+
+## 2026-09-25 (f) — Kill-switch drill #2: PASSED; Phase 4 forward clock started; dashboard
+
+- Drill (overdue since ~09-09), run while flat: ON 16:40:57Z (`kill-switch on`
+  row #11888; nothing to flatten) → flag survived a 16:52 container restart →
+  17:02 tick logged "Kill switch is ON — flat and halted", wrote no decision,
+  lastProcessedTs held at 15:00Z → OFF 17:02:48Z (#11889) → 18:02 tick:
+  `catch-up` missed 2 (#11901), 16:00Z decided `replayed: true`, 17:00Z live,
+  lastProcessedTs 17:00Z. Equity unchanged 10,143.47. Cost: one live tick.
+  The 17:02 halt line also proves crons still fire under
+  `AppModule.withScheduler()`.
+- Redeployed 17:02:51Z with the human's `ANTHROPIC_API_KEY` +
+  `ENABLE_LLM_ANALYST=true`. **Phase 4 forward clock started 2026-09-25
+  17:05:00Z** — `analyst-started` #11890, cursor #11889, zero calls for past
+  events. `HEALTHCHECK_PING_URL` still unset.
+- Dashboard: Analyst card (latest note + its guardrail probabilities, plain
+  numbers — Amendment 2 sets no threshold); feed sentences for analyst /
+  analyst-check / analyst-* ops rows; fixed the catch-up line reading a
+  non-existent `candles` field (payload has `missed`).
+
+## 2026-09-28 — Health check; Phase 4 window fixed at 30 days (Amendment 3)
+
+- Check 12:02Z: 67 live ticks since the drill (66 expected + the resume
+  tick), no gaps, no errors, no risk rows; flat, 10,143.47. Three daily analyst
+  notes (09-26/27/28 06:10Z, ~$0.04 each, ~10 s); guardrail max predictsPrice
+  0.68 on 09-26 ("fits a rebound now pausing" — forward-leaning, no forecast or
+  trade call); others 0.07–0.27. Probes 4/4 demo fills with prices.
+- Corrected my own earlier statement that Phase 4 "needs ≥ 3 months": that is
+  §6's figure for an LLM-using strategy. Human asked to shorten; PHASE4-PREREG
+  Amendment 3 fixes the window at 30 days, **ending 2026-10-25 17:05Z**, before
+  any analysis of the notes. REPORT §12 and AGENTS updated.

@@ -207,3 +207,26 @@ the output selection §4 forbids.
 - Integration smoke test on two synthetic analyses (not journaled, not part of
   the series) is permitted to verify wiring; its numbers are not used for
   anything.
+
+### Amendment 3 — 2026-09-28: the Phase 4 window is fixed at 30 days, ending 2026-10-25 17:05Z
+
+Human decision 2026-09-28, written three days into the forward clock and
+**before any analysis of the analyst output** (three daily notes exist; none
+has been scored, compared or selected on).
+
+- **Why the length was open.** §0 never pinned a duration for Phase 4 itself.
+  "≥ 3 months" belongs to §6 / SPEC §2.5 — the forward evaluation of an
+  LLM-*using* strategy against its LLM-off twin — which V1 does not run. The
+  §9 deliverable ("the integration works; k rows over d days; cost; zero
+  analyst errors reached the loop; the forward clock started on <date>")
+  does not require three months, and was being read as though it did.
+- **Window:** 2026-09-25 17:05:00Z (`analyst-started`, journal #11890) →
+  **2026-10-25 17:05:00Z**, 30 days — the soak's scale, and it coincides
+  with the next kill-switch drill. Fixed now so it cannot be chosen after
+  seeing how the notes look. REPORT §13 is written from rows inside the window
+  only; a missed daily note inside it is reported as missed, never backfilled.
+- **Not changed:** cadence (daily 06:10Z + event triggers), model, prompt,
+  caps, guardrail. The analyst keeps running after the window closes; later
+  rows are outside §13's population and are not added to it.
+- **Still not claimed:** anything about whether AI helps (§0, §6). Shortening
+  the window changes nothing there — V1 never makes that claim.

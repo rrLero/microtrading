@@ -572,7 +572,8 @@ protocol did not prevent any of that; the ledger made each one findable after
 the fact. That is the honest scope of what the discipline buys.
 
 Next, per `docs/PHASE4-PREREG.md`: the LLM analyst, observability only, N
-unchanged at 34.
+unchanged at 34. Its forward clock started 2026-09-25 17:05Z; the window closes
+2026-10-25 17:05Z (Amendment 3), after which §13 is written.
 
 ---
 

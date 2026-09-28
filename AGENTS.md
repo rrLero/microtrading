@@ -146,7 +146,10 @@ Update it after every significant operational or engineering change.
   without an explicit human decision; REPORT §1.2 records it will not be.
 - **Phase 4 (LLM analyst) is BUILT and deployed OFF (2026-09-25)**: model
   `claude-opus-5-5` (PREREG Amendment 1); enable with `ANTHROPIC_API_KEY` +
-  `ENABLE_LLM_ANALYST=true` in `.env`. Originally decided to start after the soak
+  `ENABLE_LLM_ANALYST=true` in `.env`. **Forward clock started 2026-09-25 17:05Z; the
+  Phase 4 window ENDS 2026-10-25 17:05Z (PREREG Amendment 3) — then write REPORT
+  §13 from rows inside the window. NOT 3 months: that figure is for an
+  LLM-using strategy (§6), which V1 does not run.** Jev guardrail: Amendment 2. Originally decided to start after the soak
   completes 2026-09-06 (human decision 2026-08-25, logged in WORKLOG before any LLM
   output existed; pre-registration in `docs/PHASE4-PREREG.md` — read it, it
   pins schema, model, triggers, cost cap and the no-prompt-hunting rule). **Scope is OBSERVABILITY ONLY: the analyst journals regime
@@ -159,7 +162,7 @@ Update it after every significant operational or engineering change.
   V1: turnover of 10-25 round trips/yr gives ~3-6 trades in 3 months against
   §7.4's 100-trade floor.
 - Kill-switch drill completed 2026-08-09/10 (flatten, halt, resume all verified).
-  Next drill due ~2026-09-09.
+  Second drill 2026-09-25 PASSED (WORKLOG). Next drill due ~2026-10-25.
 - §6.3 gate is stated BY COMPONENT, not as one aggregate (`calibrate-report`):
   fees vs the published schedule (PASS), slippage vs the sampled book (**FAIL as
   of 2026-08-24** — was PASS through 08-20), mechanics via demo (PASS),
