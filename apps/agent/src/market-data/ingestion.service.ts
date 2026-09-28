@@ -30,7 +30,9 @@ export class IngestionService {
    * structurally incapable of placing an order.
    */
   createExchange(exchangeId?: string): Exchange {
-    const id = exchangeId ?? this.config.get<string>('DATA_EXCHANGE', 'kraken');
+    // Bybit is the data venue since SPEC §7.5 D2/D3. A 'kraken' default once let a
+    // host run splice Kraken candles onto Bybit history (WORKLOG 2026-09-28).
+    const id = exchangeId ?? this.config.get<string>('DATA_EXCHANGE', 'bybit');
     const ctor = (ccxt as unknown as Record<string, new (cfg: object) => Exchange>)[id];
     if (!ctor) throw new Error(`Unknown ccxt exchange id: ${id}`);
     return new ctor({ enableRateLimit: true });
@@ -41,8 +43,8 @@ export class IngestionService {
    * Derived 4h candles are aggregated locally from 1h (single source of truth,
    * and guarantees the 4h series obeys the closed-candle rule).
    */
-  async backfill(symbol: string, sinceIso: string): Promise<void> {
-    const exchange = this.createExchange();
+  async backfill(symbol: string, sinceIso: string, exchangeId?: string): Promise<void> {
+    const exchange = this.createExchange(exchangeId);
     await exchange.loadMarkets();
     if (!exchange.markets?.[symbol]) {
       throw new Error(`Symbol ${symbol} not listed on ${exchange.id}. Available USDC pairs: ${Object.keys(exchange.markets ?? {}).filter((s) => s.endsWith('/USDC')).slice(0, 20).join(', ')}`);

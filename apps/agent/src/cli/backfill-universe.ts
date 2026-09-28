@@ -41,7 +41,8 @@ async function main(): Promise<void> {
         }
       }
       try {
-        await ingestion.backfill(p.symbol, `${p.historyFrom}T00:00:00Z`);
+        // The universe names its data venue; never fall back to DATA_EXCHANGE here.
+        await ingestion.backfill(p.symbol, `${p.historyFrom}T00:00:00Z`, uni.dataVenue);
         const n = await repo.countRows(p.symbol, '1h');
         console.log(`${label} done — ${n.toLocaleString()} 1h candles`);
       } catch (err) {
