@@ -61,5 +61,6 @@ async function get<T>(path: string): Promise<T> {
 export const api = {
   status: () => get<AgentStatus>('/agent/status'),
   journal: (limit = 25) => get<JournalRow[]>(`/agent/journal?limit=${limit}`),
+  journalKind: (kind: string, limit = 5) => get<JournalRow[]>(`/agent/journal?limit=${limit}&kind=${kind}`),
   equity: (hours = 720) => get<EquityPointDto[]>(`/agent/equity?hours=${hours}`),
 };

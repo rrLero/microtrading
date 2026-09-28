@@ -53,6 +53,8 @@ export default function DashboardPage() {
   // ponytail: ~12 raw journal rows/hour (10 spread-sample + decision + mark), so
   // 300 covers ~24h. Bump further (cap 500, see status.controller.ts) if needed.
   const journal = useQuery({ queryKey: ['journal'], queryFn: () => api.journal(300) });
+  const analyst = useQuery({ queryKey: ['analyst'], queryFn: () => api.journalKind('analyst', 1) });
+  const checks = useQuery({ queryKey: ['analyst-check'], queryFn: () => api.journalKind('analyst-check', 5) });
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   // Recomputed each render so relative times stay honest between refetches.
@@ -214,6 +216,54 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <EquityChart points={(equity.data ?? []).map((p) => ({ ts: p.ts, equity: p.equity }))} baseline={s?.initialCash} />
+        </CardContent>
+      </Card>
+
+      {/*
+        Phase 4 is observability only: nothing reads these notes. The guardrail
+        probabilities are shown as plain numbers — PHASE4-PREREG Amendment 2 sets
+        no threshold, so the UI does not colour one in.
+      */}
+      <Card>
+        <CardHeader className="flex-row items-baseline justify-between">
+          <CardTitle>Analyst</CardTitle>
+          <span className="text-xs text-muted-foreground">observability only · no strategy reads this</span>
+        </CardHeader>
+        <CardContent className="pb-5">
+          {(() => {
+            const a = analyst.data?.[0];
+            if (!a) {
+              return (
+                <p className="text-sm text-muted-foreground">
+                  No note yet. The daily note lands at 06:10 UTC; a fill, risk block or stale-data halt gets one
+                  within 5 minutes.
+                </p>
+              );
+            }
+            const p = a.payload as any;
+            const c = checks.data?.find((x) => (x.payload as any).analystJournalId === a.id)?.payload as any;
+            return (
+              <div className="space-y-2 text-sm">
+                <div className="text-xs text-muted-foreground">
+                  {p.trigger} · {ago(a.at, now)} · {p.model} · ${Number(p.usage?.costUsd ?? 0).toFixed(4)}
+                </div>
+                <div className="font-medium">
+                  Regime: {p.regime?.label} ({Math.round((p.regime?.confidence ?? 0) * 100)}% self-reported)
+                </div>
+                <p className="text-secondary-foreground">{p.commentary}</p>
+                {p.review && (
+                  <p className="text-secondary-foreground">
+                    <span className="font-medium">Review: {p.review.verdict}</span> — {p.review.note}
+                  </p>
+                )}
+                <div className="readout text-xs text-muted-foreground">
+                  {c
+                    ? `Guardrail (${c.model}): predicts price ${Number(c.predictsPrice).toFixed(2)} · recommends trade ${Number(c.recommendsTrade).toFixed(2)} · contradicts inputs ${Number(c.contradictsInputs).toFixed(2)}`
+                    : 'Guardrail: no check recorded for this note'}
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 

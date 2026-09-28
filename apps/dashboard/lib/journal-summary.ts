@@ -28,6 +28,12 @@ export function summarise(row: JournalRow): string {
       return `PAPER ${String(p['side']).toUpperCase()} ${n(p['quantity'], 6)} @ ${n(p['fillPrice'])} · fee ${n(p['fee'], 4)}${p['reason'] ? ` · ${p['reason']}` : ''}`;
     case 'demo-fill':
       return `Demo ${p['side']} ${n(p['demoFilledQty'], 6)} @ ${n(p['demoAvgPrice'])} vs modelled ${n(p['paper']?.fillPrice)}${p['probe'] ? ' (probe)' : ''}`;
+    case 'analyst': {
+      const r = p['regime'] ?? {};
+      return `Analyst (${p['trigger']}): ${r.label ?? '?'} ${typeof r.confidence === 'number' ? `${Math.round(r.confidence * 100)}%` : ''} — ${p['commentary'] ?? ''}`;
+    }
+    case 'analyst-check':
+      return `Guardrail on analyst #${p['analystJournalId']}: predicts price ${n(p['predictsPrice'])} · recommends trade ${n(p['recommendsTrade'])} · contradicts inputs ${n(p['contradictsInputs'])}`;
     case 'risk':
       return `Blocked: ${p['event'] ?? 'risk rule'}${p['symbol'] ? ` on ${p['symbol']}` : ''}`;
     case 'ops':
@@ -39,7 +45,7 @@ export function summarise(row: JournalRow): string {
         case 'kill-switch':
           return `KILL SWITCH ${p['on'] ? 'ON — flattening and halting' : 'OFF — trading resumed'}`;
         case 'catch-up':
-          return `Catch-up replay: ${p['candles'] ?? '?'} missed candle(s) processed`;
+          return `Catch-up replay: ${p['missed'] ?? '?'} missed candle(s) processed`;
         case 'mirror-error':
           return `Mirror error: ${p['message'] ?? 'unknown'}`;
         case 'mirror-skip-stale':
@@ -52,6 +58,18 @@ export function summarise(row: JournalRow): string {
           return 'Probe skipped — kill switch on';
         case 'stale-data-halt':
           return 'HALTED — market data went stale';
+        case 'analyst-started':
+          return `Analyst started (${p['model']}) — forward clock from here`;
+        case 'analyst-paused':
+          return 'Analyst paused — kill switch on';
+        case 'analyst-resumed':
+          return 'Analyst resumed';
+        case 'analyst-capped':
+          return `Analyst skipped — ${p['cap']} cap (${p['trigger']})`;
+        case 'analyst-error':
+          return `Analyst error (${p['trigger']}): ${p['message'] ?? 'unknown'}`;
+        case 'analyst-check-error':
+          return `Guardrail error: ${p['message'] ?? 'unknown'}`;
         default:
           return String(p['event'] ?? compact(p));
       }
@@ -123,6 +141,8 @@ export function toFeed(rows: JournalRow[]): FeedItem[] {
 export function severity(row: JournalRow): 'alert' | 'event' | 'routine' {
   const e = (row.payload as Record<string, unknown>)['event'];
   if (row.kind === 'risk' || e === 'mirror-error' || e === 'stale-data-halt' || e === 'kill-switch') return 'alert';
+  if (e === 'analyst-error' || e === 'analyst-check-error') return 'alert';
+  if (row.kind === 'analyst') return 'event';
   // A probe is a scheduled self-test, not something the strategy decided to do.
   // Bolding two of them a day trains the eye to ignore the emphasis entirely.
   if (row.kind === 'demo-fill') return (row.payload as Record<string, unknown>)['probe'] ? 'routine' : 'event';
