@@ -55,6 +55,7 @@ export default function DashboardPage() {
   const journal = useQuery({ queryKey: ['journal'], queryFn: () => api.journal(300) });
   const analyst = useQuery({ queryKey: ['analyst'], queryFn: () => api.journalKind('analyst', 1) });
   const checks = useQuery({ queryKey: ['analyst-check'], queryFn: () => api.journalKind('analyst-check', 5) });
+  const shadow = useQuery({ queryKey: ['shadow'], queryFn: api.shadow });
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   // Recomputed each render so relative times stay honest between refetches.
@@ -266,6 +267,49 @@ export default function DashboardPage() {
           })()}
         </CardContent>
       </Card>
+
+      {/* SPEC §7.5 D4 / docs/SHADOW-PREREG.md: paper only, verdict at 100 pooled trades — interim numbers are not a result. */}
+      {shadow.data && shadow.data.accounts.length > 0 && (
+        <Card>
+          <CardHeader className="flex-row items-baseline justify-between">
+            <CardTitle>Shadow pairs</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              paper only · tick {ago(shadow.data.lastTickAt, now)} · verdict at 100 pooled trades
+            </span>
+          </CardHeader>
+          <CardContent className="pb-5">
+            <div className="readout mb-3 text-sm">
+              {shadow.data.roundTrips} round trip{shadow.data.roundTrips === 1 ? '' : 's'} · {shadow.data.wins} won · net{' '}
+              {num(shadow.data.netPnl)} USDC
+              <span className="ml-2 text-xs text-muted-foreground">(interim — not a result)</span>
+            </div>
+            <table className="readout w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted-foreground">
+                  <th className="py-1 font-normal">Pair</th>
+                  <th className="py-1 font-normal">Position</th>
+                  <th className="py-1 text-right font-normal">Equity (USDC)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shadow.data.accounts.map((a) => (
+                  <tr key={a.symbol} className="border-t border-border">
+                    <td className="py-1">{a.symbol.split('/')[0]}</td>
+                    <td className="py-1 text-secondary-foreground">
+                      {a.killSwitch
+                        ? 'halted'
+                        : a.positionQty > 0
+                          ? `long @ ${num(a.avgEntryPrice, 4)} · stop ${a.stopPrice ? num(a.stopPrice, 4) : '—'}`
+                          : 'flat'}
+                    </td>
+                    <td className="py-1 text-right">{num(a.equity)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

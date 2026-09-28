@@ -5,10 +5,11 @@ import { BybitDemoMirrorService } from './bybit-demo-mirror.service.js';
 import { CalibrationProbeService } from './calibration-probe.service.js';
 import { PaperBrokerService } from './paper-broker.service.js';
 import { TradingLoopService } from './trading-loop.service.js';
+import { ShadowLoopService } from './shadow-loop.service.js';
 
 @Module({
   imports: [MarketDataModule, ExperimentsModule],
-  providers: [BybitDemoMirrorService, CalibrationProbeService, PaperBrokerService, TradingLoopService],
+  providers: [BybitDemoMirrorService, CalibrationProbeService, PaperBrokerService, TradingLoopService, ShadowLoopService],
   exports: [BybitDemoMirrorService, CalibrationProbeService, PaperBrokerService, TradingLoopService],
 })
 export class TradingModule {}

@@ -38,6 +38,7 @@ services:
       # §6.3 daily calibration probe (13:37 UTC). Paper-account-isolated and
       # kill-switch aware; set to "false" to stop probing without a rebuild.
       ENABLE_CALIBRATION_PROBE: "true"
+      ENABLE_SHADOW_LOOP: "true" # SPEC §7.5 D4, docs/SHADOW-PREREG.md
       # SPEC §2.1 / §7.5 D3 (2026-08-12): data venue == execution venue, so the
       # series we evaluate on is the one we fill against. Overrides .env.
       DATA_EXCHANGE: bybit

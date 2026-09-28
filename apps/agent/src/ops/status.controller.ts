@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { desc, eq, gte, and, sql } from 'drizzle-orm';
 import { aggregate1hTo4h, donchianBounds, TIMEFRAME_MS } from '@microtrading/core';
 import { DbService } from '../db/db.service.js';
-import { journal } from '../db/schema.js';
+import { journal, paperAccount } from '../db/schema.js';
 import { CandleRepository } from '../market-data/candle-repository.js';
 import { PaperBrokerService } from '../trading/paper-broker.service.js';
 import { btFor, type StrategyFamily } from '../experiments/experiment.service.js';
@@ -151,8 +151,59 @@ export class StatusController {
     const n = Math.min(Number(limit ?? 50) || 50, 500);
     const rows = kind
       ? await this.dbs.db.select().from(journal).where(eq(journal.kind, kind)).orderBy(desc(journal.id)).limit(n)
-      : await this.dbs.db.select().from(journal).orderBy(desc(journal.id)).limit(n);
+      : await this.dbs.db
+          .select()
+          .from(journal)
+          .where(sql`${journal.kind} not like 'shadow-%'`) // D4 rows: ~20/h, would bury the traded pair's feed
+          .orderBy(desc(journal.id))
+          .limit(n);
     return rows;
+  }
+
+  /** D4 shadow paper accounts (docs/SHADOW-PREREG.md): one row per pair, plus pooled round trips. */
+  @Get('shadow')
+  async shadow() {
+    const main = this.config.get<string>('SYMBOL', 'BTC/USDC');
+    const accounts = (await this.dbs.db.select().from(paperAccount)).filter((a) => a.symbol !== main);
+    const lastPrice = async (symbol: string) => {
+      const ts = await this.repo.latestTimestamp(symbol, '1h');
+      return ts !== null ? ((await this.repo.fetchSince(symbol, '1h', ts))[0]?.close ?? null) : null;
+    };
+    const sells = await this.dbs.db
+      .select({ payload: journal.payload, at: journal.at })
+      .from(journal)
+      .where(and(eq(journal.kind, 'shadow-fill'), sql`${journal.payload}->>'side' = 'sell'`))
+      .orderBy(desc(journal.id));
+    const pnls = sells.map((r) => Number((r.payload as { pnlNet?: number }).pnlNet ?? 0));
+    const [lastTick] = await this.dbs.db
+      .select({ at: journal.at })
+      .from(journal)
+      .where(eq(journal.kind, 'shadow-decision'))
+      .orderBy(desc(journal.id))
+      .limit(1);
+    return {
+      enabled: this.config.get('ENABLE_SHADOW_LOOP') === 'true',
+      lastTickAt: lastTick?.at ?? null,
+      roundTrips: pnls.length,
+      wins: pnls.filter((x) => x > 0).length,
+      netPnl: pnls.reduce((a, b) => a + b, 0),
+      recentTrades: sells.slice(0, 10).map((r) => ({ at: r.at, ...(r.payload as object) })),
+      accounts: await Promise.all(
+        accounts.map(async (a) => {
+          const price = await lastPrice(a.symbol);
+          return {
+            symbol: a.symbol,
+            cash: a.cash,
+            positionQty: a.positionQty,
+            avgEntryPrice: a.avgEntryPrice,
+            stopPrice: a.stopPrice,
+            markPrice: price,
+            equity: a.cash + a.positionQty * (price ?? a.avgEntryPrice),
+            killSwitch: a.killSwitch === 'on',
+          };
+        }),
+      ),
+    };
   }
 
   @Get('equity')

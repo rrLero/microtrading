@@ -65,8 +65,8 @@ export class TradingLoopService {
     }
   }
 
-  async runOnce(): Promise<void> {
-    const symbol = this.config.get<string>('SYMBOL', 'BTC/USDC');
+  /** `symbol` defaults to the traded pair; ShadowLoopService passes the others (SPEC §7.5 D4). */
+  async runOnce(symbol = this.config.get<string>('SYMBOL', 'BTC/USDC')): Promise<void> {
     const family = this.config.get<StrategyFamily>('STRATEGY_FAMILY', 'donchian-breakout');
     const bt = btFor(family);
     const costs: PaperCosts = bt.costs;
@@ -82,7 +82,7 @@ export class TradingLoopService {
     const newest = candles1h[candles1h.length - 1];
     if (!newest || now - (newest.timestamp + TIMEFRAME_MS['1h']) > 15 * 60_000) {
       this.log.error('STALE DATA: newest closed candle too old — no orders this cycle (fail-closed).');
-      await this.broker.journalEvent('ops', { event: 'stale-data-halt', lastCandleTs: newest?.timestamp ?? null });
+      await this.broker.journalEvent('ops', { event: 'stale-data-halt', symbol, lastCandleTs: newest?.timestamp ?? null });
       return;
     }
 
@@ -106,7 +106,7 @@ export class TradingLoopService {
     }
     if (missed > 1) {
       this.log.warn(`Catch-up: replaying ${missed} missed candle(s) since ${new Date(state.lastProcessedTs ?? 0).toISOString()}.`);
-      await this.broker.journalEvent('ops', { event: 'catch-up', missed, from: candles1h[startIdx]!.timestamp, to: newest.timestamp });
+      await this.broker.journalEvent('ops', { event: 'catch-up', symbol, missed, from: candles1h[startIdx]!.timestamp, to: newest.timestamp });
     }
     if (missed > TradingLoopService.MAX_REPLAY) {
       await this.broker.journalEvent('ops', {
@@ -150,6 +150,7 @@ export class TradingLoopService {
 
       // equity point for this candle
       await this.broker.journalEvent('equity', {
+        symbol,
         ts: candle.timestamp,
         equity: this.broker.equity(state, candle.close),
         price: candle.close,
@@ -166,6 +167,7 @@ export class TradingLoopService {
           : null;
       const signal = strategy.onCandle({ symbol, candles1h: candles1h.slice(0, i + 1), candles4h: closed4h, position });
       await this.broker.journalEvent('decision', {
+        symbol,
         strategy: strategy.id,
         candleTs: candle.timestamp,
         close: candle.close,
@@ -206,18 +208,18 @@ export class TradingLoopService {
   ): Promise<PaperState> {
     const equity = this.broker.equity(state, refPrice);
     if (state.dayStartEquity !== null && equity <= state.dayStartEquity * (1 - bt.risk.dailyLossCutoffPct / 100)) {
-      await this.broker.journalEvent('risk', { event: 'daily-cutoff-block', equity, dayStartEquity: state.dayStartEquity, candleTs: ts });
+      await this.broker.journalEvent('risk', { event: 'daily-cutoff-block', symbol, equity, dayStartEquity: state.dayStartEquity, candleTs: ts });
       return state;
     }
     if (volCircuitBreakerActive(candles1h, atrSeries, fillIndex, bt.risk.volCircuitBreakerPercentile)) {
-      await this.broker.journalEvent('risk', { event: 'vol-circuit-breaker-block', candleTs: ts });
+      await this.broker.journalEvent('risk', { event: 'vol-circuit-breaker-block', symbol, candleTs: ts });
       return state;
     }
     // ATR as of the decision candle (one before the fill candle) — no look-ahead
     const atrVal = atrSeries[Math.max(0, fillIndex - 1)];
     const plan = computeEntryPlan(equity, refPrice, atrVal ?? NaN, bt.risk);
     if (!plan) {
-      await this.broker.journalEvent('risk', { event: 'entry-plan-null', candleTs: ts });
+      await this.broker.journalEvent('risk', { event: 'entry-plan-null', symbol, candleTs: ts });
       return state;
     }
     return this.broker.buy(symbol, state, refPrice, plan.quantity, plan.stopPrice, costs, 'donchian entry', ts);

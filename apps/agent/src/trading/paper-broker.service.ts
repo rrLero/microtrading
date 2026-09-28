@@ -207,9 +207,14 @@ export class PaperBrokerService {
     return next;
   }
 
+  /**
+   * Sets the flag on EVERY paper account — the traded pair and the D4 shadow
+   * accounts — so one command halts everything. Shadow accounts flatten on
+   * their own next tick; the CLI flattens `symbol` immediately.
+   */
   async setKillSwitch(symbol: string, on: boolean): Promise<void> {
-    await this.dbs.db.update(paperAccount).set({ killSwitch: on ? 'on' : 'off' }).where(eq(paperAccount.symbol, symbol));
-    await this.journalEvent('ops', { event: 'kill-switch', symbol, on });
+    await this.dbs.db.update(paperAccount).set({ killSwitch: on ? 'on' : 'off' });
+    await this.journalEvent('ops', { event: 'kill-switch', symbol, on, scope: 'all-accounts' });
   }
 
   private async persist(symbol: string, s: PaperState): Promise<void> {
