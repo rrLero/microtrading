@@ -1006,3 +1006,39 @@ probe work uncovered a silent mirror bug.
   §6's figure for an LLM-using strategy. Human asked to shorten; PHASE4-PREREG
   Amendment 3 fixes the window at 30 days, **ending 2026-10-25 17:05Z**, before
   any analysis of the notes. REPORT §12 and AGENTS updated.
+
+## 2026-09-28 (b) — D4 shadow paper trading; a data-venue splice caught and reverted
+
+- **Human decision: D4** — paper-trade the nine non-BTC universe pairs in
+  parallel for statistical power (~70 vs 10–25 trades/yr). Logged in SPEC §7.5
+  and the REPORT §11 register (five deviations; D3 had been declared final —
+  this says so). `docs/SHADOW-PREREG.md` written before the first tick: same
+  config (N unchanged at 34), 10,000 USDC per pair, independent accounts,
+  verdict once at 100 pooled round trips or 2028-03-28, re-costed at observed
+  p90 spreads as a pre-registered sensitivity. Pairs outside the universe only
+  as tagged-exploratory amendments, never pooled.
+- Build: `TradingLoopService.runOnce(symbol)`; decision/equity/risk/catch-up/
+  stale rows now carry `symbol`. `ShadowLoopService` (:04) runs a second,
+  non-provider instance of the same loop with a broker that journals
+  `shadow-<kind>` and never mirrors — so every existing reader (status,
+  analyst, uptime queries, calibrate-report, equity chart) excludes it by kind.
+  `/api/journal` hides `shadow-*` unless asked; new `/api/shadow`; dashboard
+  "Shadow pairs" card. Kill switch now sets the flag on ALL paper accounts;
+  shadow accounts flatten on their own next tick (≤ 1 h). Deployed 12:16Z with
+  `ENABLE_SHADOW_LOOP: "true"` in the compose file.
+- **Incident (mine), found and reverted before anything consumed it:** bringing
+  the nine pairs' candles current with `backfill-universe` from the host wrote
+  **4,320 Kraken 1h candles** (08-29 → 09-28) onto the Bybit history of ETH,
+  XRP, SOL, ADA, DOGE, AVAX — the host has no `DATA_EXCHANGE=bybit` and
+  `createExchange` defaulted to `'kraken'`; `backfill-universe` read
+  `uni.dataVenue` for its purge check but never passed it to the fetcher.
+  ARB/SUI/MNT failing ("not listed on kraken") exposed it. Deleted exactly
+  those rows in one transaction (count asserted), re-backfilled from Bybit: all
+  ten pairs 1,140 Bybit candles 08-12 → 09-28 11:00, no gaps, zero Kraken rows
+  since 08-12. BTC was never touched. Root fix: default venue `bybit`;
+  `backfill(symbol, since, exchangeId?)`; the universe CLI passes its venue.
+- **First shadow tick 2026-09-28 13:04Z — the D4 population starts here.**
+  Nine accounts created (10,000 USDC each), nine `shadow-decision` rows (all
+  hold), zero errors; every account started at the 12:00Z candle (no replay).
+  BTC's 13:02 rows carry `symbol`, equity unchanged; zero non-BTC rows in
+  regular kinds; analyst made no calls on shadow data.

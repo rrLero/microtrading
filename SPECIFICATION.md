@@ -3,7 +3,7 @@
 **Version:** 0.3.1 (v0.3 frozen 2026-08-02; §7.5 deviation/clarification log and Appendix D errata appended 2026-08-25 — no frozen section was edited)
 **Date:** 2026-08-02 (frozen text) · 2026-08-25 (last appended entry)
 **Author:** Roman Levchenko (with Claude)
-**Status:** Phase 3 soak ended 2026-09-06, C6 coverage NOT met (93.9%, §7.5 C9); Phase 4 decided (`docs/PHASE4-PREREG.md`); holdout sealed by decision (REPORT §1.2)
+**Status:** Phase 3 soak ended 2026-09-06, C6 coverage NOT met (93.9%, §7.5 C9); D4 shadow paper trading from 2026-09-28; Phase 4 decided (`docs/PHASE4-PREREG.md`); holdout sealed by decision (REPORT §1.2)
 **Companion docs:** REVIEW.md (the adversarial review this version answers) · docs/STRESS-TEST-2026-08-25.md (second review, against the ledger) · docs/REPORT.md
 **Reading rule:** sections 1–10 are the frozen v0.3 text and contain stale statements. Appendix D lists every one with its current truth. §7.5 is the only section that grows.
 
@@ -575,6 +575,16 @@ later reader, from a rule that was quietly tightened or loosened.
   Phase 4, which is observability-only and adds no trials, so it proceeds. What
   the soak did establish is §8's warning: the dev laptop sleeps, silently —
   the dead-man's ping (C-list, `HEALTHCHECK_PING_URL`) was never deployed.
+- **D4 — 2026-09-28 — shadow paper trading on the nine non-BTC universe pairs.**
+  Human decision. §5.3 pins V1 to "max 1 open position (BTC only)"; this sets
+  that aside **for paper only**: each non-BTC universe pair gets its own
+  independent 10,000 USDC paper account running the deployed config through
+  the same loop code (no new configuration, **N unchanged at 34**), isolated as
+  `shadow-*` journal rows, never mirrored to demo. Timing: recognised **after**
+  the V1 null (REPORT §1) — the motive is statistical power (~70 vs 10–25
+  trades/yr), not a result; the verdict rule, horizon and cost sensitivity are
+  fixed in `docs/SHADOW-PREREG.md` before the first shadow tick. The traded
+  pair, its loop and the Phase 4 window are unchanged.
 
 ---
 

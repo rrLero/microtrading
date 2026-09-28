@@ -466,7 +466,7 @@ SPEC §10 is frozen and describes a plan that D0–D3 and §1.2 have since chang
 | watchdogs | **Partial** | candle-age, loop-silence, infra-down, daily summary built; position-age and crash-loop alerts not; the heartbeat was in-process only until 08-25 (SPEC App. D) |
 | walk-forward report for both starter strategies | **Met, and for a third** | SMA, RSI (the frozen starters) and donchian (D0), all pooled over the ten-pair universe |
 | holdout report | **Unmet by decision** | §1.2. Sealed, not deferred |
-| produced under the §7 protocol | **Met, with a register** | four deviations, eight clarifications (§11), all logged with timing |
+| produced under the §7 protocol | **Met, with a register** | five deviations, nine clarifications (§11), all logged with timing |
 
 ### 10.2 Specified vs built
 
@@ -488,7 +488,7 @@ exact claim (SPEC Appendix D has the full list):
 
 ## 11. Protocol deviations *(the register)*
 
-Four deviations and nine clarifications, all in `SPECIFICATION.md` §7.5 with
+Five deviations and nine clarifications, all in `SPECIFICATION.md` §7.5 with
 the timing of when each was recognised — the field separating a low-bias
 correction from a result-driven one (Willroth & Atherton 2024).
 
@@ -498,13 +498,14 @@ correction from a result-driven one (Willroth & Atherton 2024).
 | **D1** | Taker fee 0.26% → 0.80% | Recognised from a published source, committed **before** any re-run | Low |
 | **D2** | Execution venue Kraken → Bybit EU | **After** seeing failure at 0.80% | Contained by ex-ante venue rule + no-re-shop commitment |
 | **D3** | Multi-pair universe; data venue → Bybit | **After** DSR stalled at 0.70 | Declared final amendment |
+| **D4** | Shadow paper trading on the nine non-BTC universe pairs (2026-09-28) | **After** the V1 null; motive is power, not a result | Same config (N unchanged); verdict rule fixed in `docs/SHADOW-PREREG.md` before the first tick. D3 was declared final — this breaks that declaration, and says so |
 
 Clarifications C1–C9 (§6.3 as four axes; raw-trade floor; kill-criteria scope;
 pinned holdout and one evaluation total; total N ≤ 45; the soak's end rule; §10
 not amended; evaluation rows; the soak verdict, C9) are readings of frozen text, not changes to the
 question, and are logged for the same reason.
 
-**Stated plainly: three of four deviations followed setbacks, and the first of
+**Stated plainly: four of five deviations followed setbacks, and the first of
 them went unlogged for nineteen days.** Each is individually defensible; the
 sequence is what a project looks like when it is talking itself into an answer.
 The sealed holdout is the remaining control.
@@ -564,8 +565,8 @@ for thirty days. What it did not do is stay up unattended *on this host*:
 93.9% live coverage against a pre-registered 95% (§10). The failure is the
 host, and it is recorded as a failure, not reinterpreted.
 
-**The process question is the most useful result.** Four deviations and nine
-clarifications (§11), three deviations following setbacks, several readings
+**The process question is the most useful result.** Five deviations and nine
+clarifications (§11), four deviations following setbacks, several readings
 that ran unlogged for weeks, and — found while writing this section — a cost
 report whose sign convention inverted its own conclusion. A pre-registered
 protocol did not prevent any of that; the ledger made each one findable after

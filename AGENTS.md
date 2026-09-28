@@ -103,10 +103,13 @@ Update it after every significant operational or engineering change.
     NO configuration of any family survives.
   - Evaluation runs **pooled over a 10-pair universe** (`experiments/universe.json`,
     pre-registered, immutable — pooled is the verdict, never per-pair selection).
-    **Trading is still ONE open position on BTC/USDC**; the universe widened what
-    we measure, not what we hold. **§5.4 is a "V2 preview (not built now)" and
-    §5.3 pins V1 to "max 1 open position (BTC only)" — concurrent positions are
-    OUT OF V1 SCOPE, not a pending task.**
+    **The traded account is still ONE position on BTC/USDC.** Since 2026-09-28
+    (SPEC §7.5 **D4**, `docs/SHADOW-PREREG.md`) the other nine universe pairs run
+    as **shadow paper accounts**: same loop code, 10,000 USDC each, independent
+    (no shared capital — §5.4 portfolio risk is still NOT built), rows journaled
+    as `shadow-*`, never mirrored to demo, ticks at :04, `ENABLE_SHADOW_LOOP` in
+    the compose file. Verdict once, at 100 pooled round trips or 2028-03-28.
+    Do not re-tune, drop or add pairs on interim numbers.
 - Current evidence (dev, pooled, 0.10%), **all three families re-run at the
   current basis 2026-08-24**:
   - `sma-crossover` **11/12** clear the kill line; best {fast 10, slow 200,
