@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { desc, eq, gte, and, sql } from 'drizzle-orm';
+import { desc, eq, gte, and, inArray, sql } from 'drizzle-orm';
 import { aggregate1hTo4h, donchianBounds, TIMEFRAME_MS } from '@microtrading/core';
 import { DbService } from '../db/db.service.js';
 import { journal, paperAccount } from '../db/schema.js';
@@ -160,10 +160,64 @@ export class StatusController {
     return rows;
   }
 
+  /**
+   * D4 combined equity: the nine shadow accounts summed per candle. Only hours
+   * where every account reported count — a missing pair must not read as a loss.
+   */
+  @Get('shadow-equity')
+  async shadowEquity(@Query('hours') hours?: string) {
+    const h = Math.min(Number(hours ?? 720) || 720, 8760);
+    const since = new Date(Date.now() - h * 3_600_000);
+    const main = this.config.get<string>('SYMBOL', 'BTC/USDC');
+    const n = (await this.dbs.db.select({ s: paperAccount.symbol }).from(paperAccount)).filter((a) => a.s !== main).length;
+    const rows = await this.dbs.db
+      .select({
+        ts: sql<number>`(${journal.payload}->>'ts')::bigint`,
+        equity: sql<number>`sum((${journal.payload}->>'equity')::float8)`,
+        accounts: sql<number>`count(*)`,
+      })
+      .from(journal)
+      .where(and(eq(journal.kind, 'shadow-equity'), gte(journal.at, since)))
+      .groupBy(sql`(${journal.payload}->>'ts')::bigint`)
+      .orderBy(sql`(${journal.payload}->>'ts')::bigint`);
+    return {
+      accounts: n,
+      start: n * Number(this.config.get('PAPER_INITIAL_CASH', '10000')),
+      points: rows.filter((r) => Number(r.accounts) === n).map((r) => ({ ts: Number(r.ts), equity: Number(r.equity) })),
+    };
+  }
+
+  /** Every paper fill — the traded pair and the D4 shadow accounts — newest first. */
+  @Get('trades')
+  async trades(@Query('limit') limit?: string) {
+    const n = Math.min(Number(limit ?? 50) || 50, 500);
+    const rows = await this.dbs.db
+      .select()
+      .from(journal)
+      .where(inArray(journal.kind, ['fill', 'shadow-fill']))
+      .orderBy(desc(journal.id))
+      .limit(n);
+    return rows.map((r) => {
+      const p = r.payload as Record<string, unknown>;
+      return {
+        id: r.id,
+        at: r.at,
+        shadow: r.kind === 'shadow-fill',
+        symbol: p['symbol'] ?? null,
+        side: p['side'] ?? null,
+        quantity: p['quantity'] ?? null,
+        fillPrice: p['fillPrice'] ?? null,
+        pnlNet: p['pnlNet'] ?? null,
+        reason: p['reason'] ?? null,
+      };
+    });
+  }
+
   /** D4 shadow paper accounts (docs/SHADOW-PREREG.md): one row per pair, plus pooled round trips. */
   @Get('shadow')
   async shadow() {
     const main = this.config.get<string>('SYMBOL', 'BTC/USDC');
+    const params = JSON.parse(this.config.get<string>('STRATEGY_PARAMS', '{}')) as Record<string, number>;
     const accounts = (await this.dbs.db.select().from(paperAccount)).filter((a) => a.symbol !== main);
     const lastPrice = async (symbol: string) => {
       const ts = await this.repo.latestTimestamp(symbol, '1h');
@@ -191,8 +245,11 @@ export class StatusController {
       accounts: await Promise.all(
         accounts.map(async (a) => {
           const price = await lastPrice(a.symbol);
+          const channel = price !== null ? await this.channel(a.symbol, params, price) : null;
           return {
             symbol: a.symbol,
+            toEntryPct: channel?.toEntryPct ?? null,
+            toExitPct: channel?.toExitPct ?? null,
             cash: a.cash,
             positionQty: a.positionQty,
             avgEntryPrice: a.avgEntryPrice,

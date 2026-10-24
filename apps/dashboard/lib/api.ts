@@ -68,8 +68,14 @@ export const api = {
       roundTrips: number;
       wins: number;
       netPnl: number;
-      accounts: { symbol: string; positionQty: number; avgEntryPrice: number; stopPrice: number | null; markPrice: number | null; equity: number; killSwitch: boolean }[];
+      accounts: { symbol: string; toEntryPct: number | null; toExitPct: number | null; positionQty: number; avgEntryPrice: number; stopPrice: number | null; markPrice: number | null; equity: number; killSwitch: boolean }[];
     }>('/agent/shadow'),
+  shadowEquity: (hours = 720) =>
+    get<{ accounts: number; start: number; points: { ts: number; equity: number }[] }>(`/agent/shadow-equity?hours=${hours}`),
+  trades: (limit = 30) =>
+    get<{ id: number; at: string; shadow: boolean; symbol: string | null; side: 'buy' | 'sell' | null; quantity: number | null; fillPrice: number | null; pnlNet: number | null; reason: string | null }[]>(
+      `/agent/trades?limit=${limit}`,
+    ),
   journalKind: (kind: string, limit = 5) => get<JournalRow[]>(`/agent/journal?limit=${limit}&kind=${kind}`),
   equity: (hours = 720) => get<EquityPointDto[]>(`/agent/equity?hours=${hours}`),
 };

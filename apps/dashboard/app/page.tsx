@@ -56,6 +56,8 @@ export default function DashboardPage() {
   const analyst = useQuery({ queryKey: ['analyst'], queryFn: () => api.journalKind('analyst', 1) });
   const checks = useQuery({ queryKey: ['analyst-check'], queryFn: () => api.journalKind('analyst-check', 5) });
   const shadow = useQuery({ queryKey: ['shadow'], queryFn: api.shadow });
+  const trades = useQuery({ queryKey: ['trades'], queryFn: () => api.trades(30) });
+  const shadowEquity = useQuery({ queryKey: ['shadow-equity'], queryFn: () => api.shadowEquity(720) });
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   // Recomputed each render so relative times stay honest between refetches.
@@ -208,6 +210,103 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* SPEC §7.5 D4 / docs/SHADOW-PREREG.md: paper only, verdict at 100 pooled trades — interim numbers are not a result. */}
+      {shadow.data && shadow.data.accounts.length > 0 && (
+        <Card>
+          <CardHeader className="flex-row items-baseline justify-between">
+            <CardTitle>Shadow pairs</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              paper only · tick {ago(shadow.data.lastTickAt, now)} · verdict at 100 pooled trades
+            </span>
+          </CardHeader>
+          <CardContent className="pb-5">
+            <div className="readout mb-3 text-sm">
+              {shadow.data.roundTrips} round trip{shadow.data.roundTrips === 1 ? '' : 's'} · {shadow.data.wins} won · net{' '}
+              {num(shadow.data.netPnl)} USDC
+              <span className="ml-2 text-xs text-muted-foreground">(interim — not a result)</span>
+            </div>
+            <table className="readout w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted-foreground">
+                  <th className="py-1 font-normal">Pair</th>
+                  <th className="py-1 font-normal">Position</th>
+                  <th className="py-1 text-right font-normal">To entry</th>
+                  <th className="py-1 text-right font-normal">Equity (USDC)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...shadow.data.accounts]
+                  .sort((a, b) => (a.positionQty > 0 ? -1 : 0) - (b.positionQty > 0 ? -1 : 0) || (a.toEntryPct ?? 1e9) - (b.toEntryPct ?? 1e9))
+                  .map((a) => (
+                  <tr key={a.symbol} className="border-t border-border">
+                    <td className="py-1">{a.symbol.split('/')[0]}</td>
+                    <td className="py-1 text-secondary-foreground">
+                      {a.killSwitch
+                        ? 'halted'
+                        : a.positionQty > 0
+                          ? `long @ ${num(a.avgEntryPrice, 4)} · stop ${a.stopPrice ? num(a.stopPrice, 4) : '—'}`
+                          : 'flat'}
+                    </td>
+                    <td className="py-1 text-right">
+                      {a.positionQty > 0 || a.toEntryPct === null ? '—' : `${a.toEntryPct.toFixed(2)}%`}
+                    </td>
+                    <td className="py-1 text-right">{num(a.equity)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Every paper fill on every pair; the Activity feed below shows BTC only. */}
+      <Card>
+        <CardHeader className="flex-row items-baseline justify-between">
+          <CardTitle>Trades — all pairs</CardTitle>
+          <span className="text-xs text-muted-foreground">paper fills, newest first</span>
+        </CardHeader>
+        <CardContent className="pb-5">
+          {trades.data && trades.data.length > 0 ? (
+            <table className="readout w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted-foreground">
+                  <th className="py-1 font-normal">When</th>
+                  <th className="py-1 font-normal">Pair</th>
+                  <th className="py-1 font-normal">Side</th>
+                  <th className="py-1 text-right font-normal">Price</th>
+                  <th className="py-1 text-right font-normal">Net P&amp;L</th>
+                  <th className="py-1 pl-3 font-normal">Why</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trades.data.map((t) => (
+                  <tr key={t.id} className="border-t border-border">
+                    <td className="py-1 text-muted-foreground">
+                      {new Date(t.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="py-1">
+                      {t.symbol?.split('/')[0] ?? '?'}
+                      {t.shadow && <span className="ml-1 text-xs text-muted-foreground">shadow</span>}
+                    </td>
+                    <td className="py-1">{t.side === 'buy' ? 'BUY' : 'SELL'}</td>
+                    <td className="py-1 text-right">{t.fillPrice !== null ? num(t.fillPrice, t.fillPrice < 10 ? 4 : 2) : '—'}</td>
+                    <td
+                      className="py-1 text-right"
+                      style={{ color: t.pnlNet === null ? undefined : t.pnlNet >= 0 ? 'var(--delta-up)' : 'var(--status-critical)' }}
+                    >
+                      {t.pnlNet !== null ? num(t.pnlNet) : ''}
+                    </td>
+                    <td className="py-1 pl-3 text-xs text-secondary-foreground">{t.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-muted-foreground">No trades yet.</p>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="flex-row items-baseline justify-between">
           <CardTitle>Equity</CardTitle>
@@ -225,6 +324,26 @@ export default function DashboardPage() {
         probabilities are shown as plain numbers — PHASE4-PREREG Amendment 2 sets
         no threshold, so the UI does not colour one in.
       */}
+      {/*
+        D4: one combined line on purpose — the pre-registered verdict is pooled,
+        and nine separate lines invite picking the pair that looks best.
+      */}
+      {shadowEquity.data && shadowEquity.data.accounts > 0 && (
+        <Card>
+          <CardHeader className="flex-row items-baseline justify-between">
+            <CardTitle>Shadow pairs — combined equity</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              {shadowEquity.data.points.length > 0
+                ? `${num(shadowEquity.data.points[shadowEquity.data.points.length - 1]!.equity - shadowEquity.data.start)} USDC vs ${shadowEquity.data.accounts} × 10,000 · paper, interim`
+                : 'paper, interim'}
+            </span>
+          </CardHeader>
+          <CardContent>
+            <EquityChart points={shadowEquity.data.points} baseline={shadowEquity.data.start} />
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="flex-row items-baseline justify-between">
           <CardTitle>Analyst</CardTitle>
@@ -267,49 +386,6 @@ export default function DashboardPage() {
           })()}
         </CardContent>
       </Card>
-
-      {/* SPEC §7.5 D4 / docs/SHADOW-PREREG.md: paper only, verdict at 100 pooled trades — interim numbers are not a result. */}
-      {shadow.data && shadow.data.accounts.length > 0 && (
-        <Card>
-          <CardHeader className="flex-row items-baseline justify-between">
-            <CardTitle>Shadow pairs</CardTitle>
-            <span className="text-xs text-muted-foreground">
-              paper only · tick {ago(shadow.data.lastTickAt, now)} · verdict at 100 pooled trades
-            </span>
-          </CardHeader>
-          <CardContent className="pb-5">
-            <div className="readout mb-3 text-sm">
-              {shadow.data.roundTrips} round trip{shadow.data.roundTrips === 1 ? '' : 's'} · {shadow.data.wins} won · net{' '}
-              {num(shadow.data.netPnl)} USDC
-              <span className="ml-2 text-xs text-muted-foreground">(interim — not a result)</span>
-            </div>
-            <table className="readout w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="py-1 font-normal">Pair</th>
-                  <th className="py-1 font-normal">Position</th>
-                  <th className="py-1 text-right font-normal">Equity (USDC)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shadow.data.accounts.map((a) => (
-                  <tr key={a.symbol} className="border-t border-border">
-                    <td className="py-1">{a.symbol.split('/')[0]}</td>
-                    <td className="py-1 text-secondary-foreground">
-                      {a.killSwitch
-                        ? 'halted'
-                        : a.positionQty > 0
-                          ? `long @ ${num(a.avgEntryPrice, 4)} · stop ${a.stopPrice ? num(a.stopPrice, 4) : '—'}`
-                          : 'flat'}
-                    </td>
-                    <td className="py-1 text-right">{num(a.equity)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>

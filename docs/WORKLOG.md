@@ -1042,3 +1042,17 @@ probe work uncovered a silent mirror bug.
   hold), zero errors; every account started at the 12:00Z candle (no replay).
   BTC's 13:02 rows carry `symbol`, equity unchanged; zero non-BTC rows in
   regular kinds; analyst made no calls on shadow data.
+
+## 2026-09-28 (c) — Dashboard: all-pairs trades and per-pair distance to entry
+
+- New `/api/trades` (BTC `fill` + `shadow-fill`, newest first); `/api/shadow`
+  accounts now carry `toEntryPct` / `toExitPct` from the same channel helper as
+  BTC. Dashboard: "Shadow pairs" moved above Equity and sorted open-first then
+  closest-to-entry, with a "To entry" column; new "Trades — all pairs" card.
+  Agent redeployed 15:09Z (between ticks). At that time all nine flat; ETH
+  closest to entry (5.29%), ARB furthest (26.6%).
+- Added `/api/shadow-equity` (nine shadow accounts summed per candle; hours
+  where any account is missing are dropped, so a gap never reads as a loss)
+  and a "Shadow pairs — combined equity" chart under the BTC one. One pooled
+  line by design — the verdict is pooled; per-pair lines invite cherry-picking.
+  Redeployed 15:13Z. 3 points so far, flat at 90,000.
