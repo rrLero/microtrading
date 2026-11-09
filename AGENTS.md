@@ -68,8 +68,9 @@ Update it after every significant operational or engineering change.
   on port 55432). Dashboard runs separately via `pnpm --filter @microtrading/dashboard dev`.
 - **Phase 3 soak ENDED 2026-09-06 00:02Z — C6 coverage NOT met: 632/673 live
   ticks = 93.9% < 95%** (SPEC §7.5 C9; do not re-litigate the drill carve-out).
-  Cause: this Mac sleeps (08-22/23 18 ticks, 08-31/09-01 11 ticks), silently —
-  no dead-man ping deployed. The loop keeps running post-soak:
+  Cause: host down overnight (08-22/23 18 ticks, 08-31/09-01 11 ticks), silently —
+  no dead-man ping deployed. Since 09-30 every gap is a Mac **shutdown** (`last`), not
+  sleep — AC idle sleep is already off (WORKLOG 2026-11-09 b). The loop keeps running post-soak:
   `donchian-breakout(40,10)` on BTC/USDC 4h, paper account from 2026-08-07 with
   10,000 USDC; flat, equity 10,143.47 after the 09-18→09-23 round trip
   (+39.70 net). Re-read `/api/status` before quoting.

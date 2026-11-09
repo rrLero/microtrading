@@ -1089,3 +1089,17 @@ probe work uncovered a silent mirror bug.
   ($0.54) ran after the window, outside §13's population.
 - `HEALTHCHECK_PING_URL` still unset: it needs an external dead-man's check
   URL from the human.
+
+## 2026-11-09 (b) — The overnight outages are SHUTDOWNS, not sleep
+
+- macOS `pmset` on AC has `sleep 0`: idle sleep is already off. Every live-tick
+  gap since wtmp began (2026-09-30) matches a shutdown/reboot pair in `last`:
+  10-01 (12 h), 10-04 (11 h), 10-06→07 (shutdown 22:17 CEST, reboot 08:24),
+  10-12→13 (22:27 → 08:43), 11-07 (shutdown 00:20 → reboot 18:56, 19 h). The
+  agent came back by itself each time (Docker + `unless-stopped`) and replayed
+  the missed candles. The Aug/Sep gaps predate the logs and stay "host down,
+  cause unverified".
+- So `caffeinate`/pmset changes would fix nothing. Options are human ones:
+  leave the Mac on overnight, or run the stack on the always-on host SPEC §8
+  already specifies (`docker-compose.prod.yml` exists). The dead-man ping
+  (`HEALTHCHECK_PING_URL`) still only alerts; it does not prevent gaps.
