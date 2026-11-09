@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { desc, eq, gte, and, inArray, sql } from 'drizzle-orm';
-import { aggregate1hTo4h, donchianBounds, TIMEFRAME_MS } from '@microtrading/core';
+import { aggregate1hTo4h, donchianBounds, roundTrips, TIMEFRAME_MS, type FillRow } from '@microtrading/core';
 import { DbService } from '../db/db.service.js';
 import { journal, paperAccount } from '../db/schema.js';
 import { CandleRepository } from '../market-data/candle-repository.js';
@@ -197,6 +197,7 @@ export class StatusController {
       .where(inArray(journal.kind, ['fill', 'shadow-fill']))
       .orderBy(desc(journal.id))
       .limit(n);
+    const net = await this.tripNets();
     return rows.map((r) => {
       const p = r.payload as Record<string, unknown>;
       return {
@@ -207,10 +208,24 @@ export class StatusController {
         side: p['side'] ?? null,
         quantity: p['quantity'] ?? null,
         fillPrice: p['fillPrice'] ?? null,
-        pnlNet: p['pnlNet'] ?? null,
+        // Round-trip net incl. the entry fee; the row's own pnlNet omits it (REPORT §13).
+        pnlNet: p['side'] === 'sell' ? (net.get(`${r.kind}|${String(p['symbol'])}|${r.at.getTime()}`) ?? null) : null,
         reason: p['reason'] ?? null,
       };
     });
+  }
+
+  private async fills(kind: 'fill' | 'shadow-fill'): Promise<FillRow[]> {
+    const rows = await this.dbs.db.select().from(journal).where(eq(journal.kind, kind));
+    return rows.map((r) => ({ ...(r.payload as Omit<FillRow, 'at'>), at: r.at.getTime() }));
+  }
+
+  /** Round-trip net per closing fill, keyed `kind|symbol|closedAt`. */
+  private async tripNets(): Promise<Map<string, number>> {
+    const m = new Map<string, number>();
+    for (const kind of ['fill', 'shadow-fill'] as const)
+      for (const t of roundTrips(await this.fills(kind))) m.set(`${kind}|${t.symbol}|${t.closedAt}`, t.net);
+    return m;
   }
 
   /** D4 shadow paper accounts (docs/SHADOW-PREREG.md): one row per pair, plus pooled round trips. */
@@ -228,7 +243,7 @@ export class StatusController {
       .from(journal)
       .where(and(eq(journal.kind, 'shadow-fill'), sql`${journal.payload}->>'side' = 'sell'`))
       .orderBy(desc(journal.id));
-    const pnls = sells.map((r) => Number((r.payload as { pnlNet?: number }).pnlNet ?? 0));
+    const pnls = roundTrips(await this.fills('shadow-fill')).map((t) => t.net);
     const [lastTick] = await this.dbs.db
       .select({ at: journal.at })
       .from(journal)

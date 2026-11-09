@@ -20,6 +20,7 @@
     "status": "node --env-file=.env dist/cli/status.js",
     "backfill-demo-readback": "node --env-file=.env dist/cli/backfill-demo-readback.js",
     "calibrate-report": "node --env-file=.env dist/cli/calibrate-report.js",
+    "shadow-verdict": "node --env-file=.env dist/cli/shadow-verdict.js",
     "calibration-probe": "node --env-file=.env dist/cli/calibration-probe.js",
     "demo-ping": "node --env-file=.env dist/cli/demo-ping.js",
     "kill-switch": "node --env-file=.env dist/cli/kill-switch.js",

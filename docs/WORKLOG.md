@@ -1103,3 +1103,20 @@ probe work uncovered a silent mirror bug.
   leave the Mac on overnight, or run the stack on the always-on host SPEC §8
   already specifies (`docker-compose.prod.yml` exists). The dead-man ping
   (`HEALTHCHECK_PING_URL`) still only alerts; it does not prevent gaps.
+
+## 2026-11-09 (c) — Round-trip P&L counts the entry fee; D4 verdict script pre-written
+
+- Bug (found by the Phase 4 stop-hit reviews): sell rows' `pnlNet` omits the
+  entry fee, and `/api/shadow` + `/api/trades` summed it — shadow net read
+  −280.95, true −288.95 (8 entry fees). Would also misclassify a trade that
+  only covers its exit fee as a win in the D4 verdict. Fix is read-side only:
+  `roundTrips()` in core pairs buy→sell per account and nets cash out − cash
+  in (pre-`costUsdc` buy row #15 costed from quantity × fillPrice). Journal
+  untouched (append-only), broker unchanged. Agent redeployed 21:09Z;
+  `/api/shadow` now −288.95.
+- `shadow-verdict` CLI written BEFORE the data exists (10 of 100 trips): every
+  SHADOW-PREREG §2 statistic, modeled and re-costed at each pair's observed p90
+  half-spread, headline rule, §7.4 kills (PF, 3 months per C3 i). Prints
+  INTERIM until 100 trips or 2028-03-28. Today: 10 trips (8 shadow + 2 BTC),
+  0 won, −334.23 USDC (−0.33% of 100,000). The C3 (ii) DD reference is not
+  stored anywhere; read `run-universe` maxDD% for {40,10} at verdict time.
