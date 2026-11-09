@@ -1056,3 +1056,36 @@ probe work uncovered a silent mirror bug.
   and a "Shadow pairs — combined equity" chart under the BTC one. One pooled
   line by design — the verdict is pooled; per-pair lines invite cherry-picking.
   Redeployed 15:13Z. 3 points so far, flat at 90,000.
+
+## 2026-10-24 — Kill-switch drill #3 (found in the journal 2026-11-09; not logged at the time)
+
+- ON 18:48:21Z (#31461) → `analyst-paused` 18:50 (#31462) → 19:02 BTC tick
+  halted (no decision row) → OFF 19:03:21Z (#31463) → `analyst-resumed` 19:05
+  (#31482) → 20:02 `catch-up` missed 2, 18:00Z decided `replayed: true`, 19:00Z
+  live. All ten accounts flat; equity unchanged 10,098.19. PASSED on the same
+  checks as drill #2, plus the analyst's pause/resume markers (Amendment 1
+  item 5) exercised live for the first time.
+- **Not exercised:** the shadow-account halt/flatten path. OFF landed before
+  the 19:04 shadow tick, which ran normally (9 decisions). Next drill (~11-24)
+  should span a :04 tick — but only while all ten accounts are flat, so a drill
+  never injects a `kill-switch flatten` exit into the D4 verdict population.
+
+## 2026-11-09 — REPORT §13 written; analyst switched off
+
+- Health: 48/48 BTC ticks and 432/432 shadow ticks in 48 h, no risk/error
+  rows. BTC flat at 10,098.19 (+0.98% since 08-07; 6 real round trips, 2 won).
+  Shadow: 8 round trips, 0 won, −280.95 on 90,000 while the nine pairs fell
+  20–35% — interim, not a result, nothing changed because of it.
+- **REPORT §13** written from the 30 rows inside the Phase 4 window (Amendment
+  3): 26/30 daily notes (four missed, each in an overnight host-sleep gap),
+  4/4 fill reviews, one prompt version, $1.31 total, zero errors, N 34. Jev
+  guardrail reported as-is: `predictsPrice` ≥ 0.5 on 9 rows (forward-leaning
+  structure language, no levels), the other two never ≥ 0.5. Commentary shown
+  next to +7 d closes, unscored. The reviews caught that stop-fill `pnlNet`
+  omits the entry fee (reporting convention; cash is correct).
+- Analyst OFF: `ENABLE_LLM_ANALYST: "false"` in `docker-compose.local.yml`
+  (overrides `.env`, which was not opened). Agent recreated 20:46Z, between
+  ticks; env verified `false` in the container, status healthy. 14 calls
+  ($0.54) ran after the window, outside §13's population.
+- `HEALTHCHECK_PING_URL` still unset: it needs an external dead-man's check
+  URL from the human.

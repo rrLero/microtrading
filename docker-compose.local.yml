@@ -39,6 +39,8 @@ services:
       # kill-switch aware; set to "false" to stop probing without a rebuild.
       ENABLE_CALIBRATION_PROBE: "true"
       ENABLE_SHADOW_LOOP: "true" # SPEC §7.5 D4, docs/SHADOW-PREREG.md
+      # Phase 4 window closed 2026-10-25 and REPORT §13 is written; overrides .env.
+      ENABLE_LLM_ANALYST: "false"
       # SPEC §2.1 / §7.5 D3 (2026-08-12): data venue == execution venue, so the
       # series we evaluate on is the one we fill against. Overrides .env.
       DATA_EXCHANGE: bybit

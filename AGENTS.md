@@ -147,25 +147,21 @@ Update it after every significant operational or engineering change.
   Do not widen scope again; if results disappoint, §7.4's stopping rule applies.
 - Holdout remains SEALED (boundary pinned 2025-08-01, C4). Do not evaluate it
   without an explicit human decision; REPORT §1.2 records it will not be.
-- **Phase 4 (LLM analyst) is BUILT and deployed OFF (2026-09-25)**: model
-  `claude-opus-5-5` (PREREG Amendment 1); enable with `ANTHROPIC_API_KEY` +
-  `ENABLE_LLM_ANALYST=true` in `.env`. **Forward clock started 2026-09-25 17:05Z; the
-  Phase 4 window ENDS 2026-10-25 17:05Z (PREREG Amendment 3) — then write REPORT
-  §13 from rows inside the window. NOT 3 months: that figure is for an
-  LLM-using strategy (§6), which V1 does not run.** Jev guardrail: Amendment 2. Originally decided to start after the soak
-  completes 2026-09-06 (human decision 2026-08-25, logged in WORKLOG before any LLM
-  output existed; pre-registration in `docs/PHASE4-PREREG.md` — read it, it
-  pins schema, model, triggers, cost cap and the no-prompt-hunting rule). **Scope is OBSERVABILITY ONLY: the analyst journals regime
-  commentary, context features and post-trade reviews; NO strategy consumes
-  them in V1.** So it adds zero trials — DSR's N stays 34. §2.5 hard rules
-  bind: the LLM never places orders, and features may NEVER be synthesized for
-  past dates (the forward clock cannot be backfilled, which is why this starts
-  promptly). Grid-searching prompt variants and keeping the best is FORBIDDEN —
-  that is multiple testing and would raise N. Expect no verdict on AI value in
-  V1: turnover of 10-25 round trips/yr gives ~3-6 trades in 3 months against
-  §7.4's 100-trade floor.
+- **Phase 4 (LLM analyst) is DONE: REPORT §13 written 2026-11-09; analyst OFF**
+  via `ENABLE_LLM_ANALYST: "false"` in `docker-compose.local.yml` (overrides
+  `.env`). Window was 2026-09-25 17:05Z → 2026-10-25 17:05Z (PREREG Amendment 3);
+  §13's population is closed — rows outside it are never added. Model
+  `claude-opus-5-5`, Jev guardrail (Amendment 2), pre-registration in
+  `docs/PHASE4-PREREG.md`. **Scope was OBSERVABILITY ONLY: NO strategy consumes
+  analyst output in V1**, so N stays 34. §2.5 hard rules bind if it is ever
+  re-enabled: the LLM never places orders, and features may NEVER be synthesized
+  for past dates (the forward clock cannot be backfilled). Grid-searching prompt
+  variants and keeping the best is FORBIDDEN — that is multiple testing and would
+  raise N. No verdict on AI value exists or can in V1.
 - Kill-switch drill completed 2026-08-09/10 (flatten, halt, resume all verified).
-  Second drill 2026-09-25 PASSED (WORKLOG). Next drill due ~2026-10-25.
+  Second drill 2026-09-25, third 2026-10-24 (found unlogged, recorded 11-09) — both
+  PASSED (WORKLOG). Next due ~2026-11-24: span a :04 tick (shadow halt path never
+  drilled) and only while ALL ten accounts are flat.
 - §6.3 gate is stated BY COMPONENT, not as one aggregate (`calibrate-report`):
   fees vs the published schedule (PASS), slippage vs the sampled book (**FAIL as
   of 2026-08-24** — was PASS through 08-20), mechanics via demo (PASS),

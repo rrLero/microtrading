@@ -1,6 +1,6 @@
 # MicroTrading V1 — Evaluation Report
 
-**Status: FINAL for V1 as of 2026-09-25** (§10 and §12 written after the soak). Revised 2026-08-25 after
+**Status: FINAL for V1 as of 2026-09-25** (§10 and §12 written after the soak; §13, Phase 4, added 2026-11-09). Revised 2026-08-25 after
 `docs/STRESS-TEST-2026-08-25.md`: §1 and §4 no longer describe the third family
 as an ex-ante choice (SPEC §7.5 D0); §1.2 no longer cites withdrawn gates; §10
 carries the definition-of-done and built/not-built reconciliation; §11 counts
@@ -575,6 +575,76 @@ the fact. That is the honest scope of what the discipline buys.
 Next, per `docs/PHASE4-PREREG.md`: the LLM analyst, observability only, N
 unchanged at 34. Its forward clock started 2026-09-25 17:05Z; the window closes
 2026-10-25 17:05Z (Amendment 3), after which §13 is written.
+
+## 13. AI in the loop, honestly
+
+*Written 2026-11-09 from journal rows inside the pre-registered window
+2026-09-25 17:05:00Z → 2026-10-25 17:05:00Z (`docs/PHASE4-PREREG.md`,
+Amendment 3). Rows after the window are not in this population.*
+
+**No strategy consumed these features, so this project makes no claim about
+whether they help — the forward clock started on 2026-09-25 17:05Z.** That
+sentence is the deliverable (PREREG §9); what follows is the evidence that the
+integration it describes exists and behaved.
+
+| Item | Value |
+|---|---|
+| N (trials, DSR) | **34, unchanged** — nothing selected on the analyst's output |
+| Analyst rows (`kind='analyst'`) | **30**: 26 `daily`, 2 `fill`, 2 `stop-hit` |
+| Daily notes | **26 / 30** — missed 10-01, 10-04, 10-07, 10-13, each inside an 11–12 h overnight tick gap (host asleep at 06:10Z, §10's failure). Reported as missed, not backfilled |
+| Fill reviews | 4 / 4 BTC fills reviewed (two entries, two stops), all verdict `ok` |
+| Provenance | 1 model (`claude-opus-5-5`), 1 `promptHash`, `featureVersion` 1 on every row — **one prompt version of the three allowed; none selected** |
+| Tokens | 207,680 in / 23,218 out; max single input 7,558 (cap 8k) |
+| Cost | **$1.30** analyst + **$0.014** guardrail = **$1.31 for 30 days** (budget ~$1–3/month) |
+| Latency | daily mean 10.2 s, max 18.6 s; reviews 14–19 s (timeout 60 s) |
+| Errors | **0** `ops/analyst-error`, **0** `ops/analyst-check-error`; zero analyst rows reached the loop (the loop has no reference to it — Amendment 1 item 4) |
+| Kill switch | ON 10-24 18:48:21Z (#31461) → `analyst-paused` 18:50 (#31462); OFF 19:03:21Z → `analyst-resumed` 19:05 (#31482). No call while halted (§8) |
+| Live tick coverage, same window | 678 / 720 = 94.2% — the host, not the analyst |
+
+**Guardrail (Amendment 2), reported as-is, no threshold.** 30 `analyst-check`
+rows, model `jev-1.13.0`, one `questionsHash`.
+
+| Question | min | mean | max | rows ≥ 0.5 |
+|---|---|---|---|---|
+| `predictsPrice` | 0.05 | 0.33 | 0.85 | 9 |
+| `recommendsTrade` | 0.06 | 0.10 | 0.21 | 0 |
+| `contradictsInputs` | 0.13 | 0.23 | 0.34 | 0 |
+
+The analyst never read as recommending a trade or contradicting its inputs.
+`predictsPrice` is the one that moves, and it moves on a real pattern, not
+noise: the three highest (#24553 10-15 at 0.85, #20293 10-09 at 0.71, #12060
+09-26 at 0.68) all describe structure in forward-leaning language — "lower
+highs", "a rebound now pausing" — without stating a level or a direction to
+come. A human reading those rows (Amendment 2) finds tendency, not forecasts;
+the system prompt's prohibition held in substance, and the check is doing what
+it was added to do: point at the rows worth reading.
+
+**Commentary next to what happened** (BTC/USDC last close at the note, and
+seven days later). Not scored — no accuracy statistic was pre-registered, and
+inventing one now would be the outcome selection §4 forbids.
+
+| Note | Regime | Close | +7 d | Excerpt |
+|---|---|---|---|---|
+| 09-30 | range | 83,006 | 84,252 | "closes have held between roughly 83000 and 84900 … no new higher highs" |
+| 10-21 | range | 82,723 | 80,778 | "fits a range with a downward tilt, not a confirmed trend … Too few trades to judge the rule." |
+| 10-25 | bear | 80,402 | 77,906 | "4h swing highs have stepped down … a weak downtrend bordering on a range … Both entries in the 30-day journal were breakouts that failed." |
+
+Labels over the window: 27 `range`, 2 `bear`, 1 `rebound`; BTC went
+83.9k → 80.4k (−4%). The notes describe the tape that the 40/10 channel was
+already reading; that is what observability-only means.
+
+**One useful finding came out of the reviews, not the commentary.** Both
+stop-hit reviews (#15775, #29724) point out that the stop fill's `pnlNet`
+omits the entry fee (e.g. −23.33 journaled vs −24.34 true round trip). That is
+a reporting convention in the fill row, not a money error — `paper_account`
+cash is correct — but it is the kind of thing a reader of the journal gets
+wrong, and the analyst caught it from inputs alone.
+
+**What this does not show.** Whether the AI adds value to trading: V1 runs no
+LLM-using strategy (§6 of the pre-registration), so there is no twin, no
+paired trade and no statistic. Four BTC trades in the window could not support
+one anyway. After the window the analyst ran 14 more calls ($0.54) outside this
+population; it was switched off on 2026-11-09 (WORKLOG).
 
 ---
 
