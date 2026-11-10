@@ -63,9 +63,15 @@ Update it after every significant operational or engineering change.
 
 ## Operational state (as of 2026-09-25 — update when it changes)
 
-- Agent runs in Docker on this Mac (`docker-compose.local.yml`, same compose
-  project + `pgdata` volume as dev compose → data is shared with host tooling
-  on port 55432). Dashboard runs separately via `pnpm --filter @microtrading/dashboard dev`.
+- **Since 2026-11-10 the agent, the dashboard and Postgres run on Railway**
+  (project `microtrading`, region EU West/Amsterdam; Bybit blocks US IPs).
+  - Cutover happened at 09:19Z: local agent stopped, `pg_dump` restored, and row
+    counts verified equal.
+  - The local Docker agent must stay STOPPED. The local DB is a frozen backup.
+  - Dashboard: https://dashboard-production-257d.up.railway.app (public, read-only).
+    The agent has no public port; the dashboard reaches it over the private network.
+  - Pushes to `main` auto-deploy. See CLAUDE.md for commands. Secrets
+    (BYBIT_DEMO_*, TYPESAFE_API_KEY, NTFY_TOPIC) are set by the human in Railway.
 - **Phase 3 soak ENDED 2026-09-06 00:02Z — C6 coverage NOT met: 632/673 live
   ticks = 93.9% < 95%** (SPEC §7.5 C9; do not re-litigate the drill carve-out).
   Cause: host down overnight (08-22/23 18 ticks, 08-31/09-01 11 ticks), silently —

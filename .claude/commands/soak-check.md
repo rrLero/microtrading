@@ -1,20 +1,22 @@
 ---
-description: Health check of the soaking trading agent (status, journal, containers)
+description: Health check of the trading agent on Railway (status, journal, services)
 ---
 
-Run the MicroTrading soak health check:
+Run the MicroTrading health check. The agent runs on **Railway** (project
+`microtrading`, region EU West) since 2026-11-10. The local Docker agent is stopped
+and must stay stopped: two loops must never run at once.
 
-1. `docker compose -f docker-compose.local.yml ps` — both `microtrading-db` and
-   `microtrading-agent` must be Up (agent restart policy: unless-stopped).
-2. `curl -s localhost:3001/api/status | jq` — verify: `loopEnabled: true`,
-   `killSwitch: false`, `lastCandleTs` within the last 2 hours (UTC epoch ms).
-3. `curl -s "localhost:3001/api/journal?limit=10" | jq` — hourly decision+equity
-   pairs at :02; flag any `risk`, `mirror-error`, `stale-data-halt`, or
-   `tick-error` entries.
-4. If a position is open, report qty/entry/stop and distance of mark to stop.
+1. `railway service list`: `agent`, `dashboard` and `Postgres` must all be Online.
+2. Fetch `https://dashboard-production-257d.up.railway.app/agent/status` and verify
+   `loopEnabled: true`, `killSwitch: false`, and `lastCandleTs` within the last
+   2 hours (UTC epoch ms).
+3. Fetch `.../agent/journal?limit=10`. Expect hourly decision+equity pairs at :02.
+   Flag any `risk`, `mirror-error`, `stale-data-halt` or `tick-error` entries.
+4. If a position is open, report qty/entry/stop and the distance of mark to stop.
+   Do the same for `.../agent/shadow`.
 5. If any `demo-fill` entries exist, mention that §6.3 calibration pairs are
-   accumulating and suggest `pnpm --filter @microtrading/agent calibrate-report`.
+   accumulating, and suggest running
+   `railway ssh --service agent -- node dist/cli/calibrate-report.js`.
 
-Report findings in 3-5 sentences, anomalies first. If data is stale >2h,
-suspect: Mac slept, Docker stopped, or Kraken ingestion failing — check
-`docker compose -f docker-compose.local.yml logs --tail 50 agent`.
+Report findings in 3–5 sentences, anomalies first. If data is stale for more than 2h,
+check `railway logs --service agent`.
