@@ -7,6 +7,12 @@
         "@modelcontextprotocol/server-postgres",
         "postgres://micro:micro@localhost:55432/microtrading"
       ]
+    },
+    "railway": {
+      "command": "railway",
+      "args": [
+        "mcp"
+      ]
     }
   }
 }
