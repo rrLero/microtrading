@@ -1,6 +1,6 @@
 # MicroTrading V1 — Evaluation Report
 
-**Status: FINAL for V1 as of 2026-09-25** (§10 and §12 written after the soak; §13, Phase 4, added 2026-11-09). Revised 2026-08-25 after
+**Status: FINAL for V1 as of 2026-09-25** (§10 and §12 written after the soak; §13, Phase 4, added 2026-11-09; §14, V2 funding carry, added 2026-11-10). Revised 2026-08-25 after
 `docs/STRESS-TEST-2026-08-25.md`: §1 and §4 no longer describe the third family
 as an ex-ante choice (SPEC §7.5 D0); §1.2 no longer cites withdrawn gates; §10
 carries the definition-of-done and built/not-built reconciliation; §11 counts
@@ -647,6 +647,63 @@ one anyway. After the window the analyst ran 14 more calls ($0.54) outside this
 population; it was switched off on 2026-11-09 (WORKLOG).
 
 ---
+
+## 14. V2: funding-rate carry — holdout FAIL
+
+**Question (SPEC §7.5 D5, 2026-11-10).** Does a BTC spot long plus an equal short
+of Bybit `BTCPERP` (USDC perp), at 1× on capital C = 10,000, earn more than 4%/yr
+on C after every cost, out of sample? The return here comes from funding, not
+from a price forecast. Design: `docs/superpowers/specs/2026-11-10-v2-funding-carry-design.md`.
+
+**Pre-registered** (#47, `experiments/funding-carry.json`, git `5b7a526`):
+
+- **Grid:** 4 configs. C1 always on. C2 enters when the trailing 21-print funding APR > 10% and exits < 0%. C3 uses k21, 20%/5%. C4 uses k63, 10%/0%.
+- **Costs:** spot 0.10% taker, perp 0.055% taker, 0.03% slippage per leg per side.
+- **N = 38.**
+
+**Data:** 5,284 funding prints from 2022-01-14 with no gaps, and 31,078 joined
+1h bars in dev, with 2 skipped because one leg was missing.
+
+**Dev, 2022-01-14 → 2025-07-31** (rows #48–#51):
+
+| | net APR on C | max DD | in market | funding | costs | best month (share) |
+|---|---|---|---|---|---|---|
+| C1 always on | 2.67% | 2.81% | 100% | 1,018 | 80 | 2024-03 (11%) |
+| **C2** k21 >10%/<0% | **4.17%** | 5.09% | 61% | 1,370 | 261 | 2023-03 (21%) |
+| C3 k21 >20%/<5% | 1.11% | 0.32% | 15% | 451 | 70 | 2024-03 (34%) |
+| C4 k63 >10%/<0% | 2.79% | 4.85% | 60% | 1,141 | 166 | 2024-03 (15%) |
+
+C2 was chosen by the D5 rule (highest dev net APR). Even on dev, only C2 cleared the
+4% bar, and only barely.
+
+**Holdout, 2025-08-01 → 2026-07-31, evaluated once** (#52):
+
+| Criterion | Result | |
+|---|---|---|
+| net APR > 4% | 1.00% | **FAIL** |
+| beats C1 | 1.00% vs C1 1.23% | **FAIL** |
+| best month < 50% | 30.7% (2025-10) | PASS |
+| max DD < 5% | 0.14% | PASS |
+
+C2 earned 118.85 funding against 19.44 costs, was in the market 47% of the time,
+and made 1 round trip. **Verdict: FAIL.**
+
+**Reading.**
+
+- **The premium is real but small, and it is shrinking.** Always-on gross funding was
+  about 5.7%/yr on the perp notional in dev and about 2.6%/yr in the holdout. Halved
+  again by the 50/50 capital split, that is ~1.2% on C, which is below what parking
+  USDC in a low-risk product pays.
+- **The gate did not help.** The gate (C2) lost to always-on (C1) once the dev
+  window ended. That is the same "selected on dev, not robust" pattern V1 showed.
+- **A risk the averages hide.** On the SVB weekend of 2023-03-11, USDC lost its peg.
+  BTC/USDC spot traded up to 11% above the USD-tracking perp, and C2's equity swung
+  +8% and back within 14 hours. That swing is its dev max DD. A USDC-margined
+  carry is exposed to the stablecoin's own peg, and no funding statistic shows it.
+
+**Consequence.** The single C4 holdout is now spent (#52); no family can be
+holdout-evaluated again. V2 closes as a reported null. The forward paper loop
+(design §8) is not built. The real-money gate (design §9) is moot.
 
 ## Appendix A — Reproducing every number
 

@@ -80,7 +80,7 @@ Update it after every significant operational or engineering change.
   places and Appendix D maps each to the current truth. Highlights that bind:
   - `HOLDOUT_FROM` is PINNED at 2025-08-01 (C4); one holdout evaluation TOTAL.
   - Total N across all families ≤ 45, enforced by `preregister` (C5); a new
-    family is a logged deviation. N is currently **34**.
+    family is a logged deviation. N is currently **38** (34 V1 + 4 `funding-carry`, D5).
   - §7.4 "100 trades" = RAW trades (C2); the 3-month kill criterion is read on
     pooled OOS+paper and FIRES for both surviving families (C3) — they are
     killed under §7.4 as well as by concentration.
@@ -146,8 +146,14 @@ Update it after every significant operational or engineering change.
   `run-universe` now prints all of this automatically.
 - **SPEC IS FROZEN.** D3 was declared the final amendment before the holdout.
   Do not widen scope again; if results disappoint, §7.4's stopping rule applies.
-- Holdout remains SEALED (boundary pinned 2025-08-01, C4). Do not evaluate it
-  without an explicit human decision; REPORT §1.2 records it will not be.
+- **Holdout is SPENT (2026-11-10, row #52)** — by V2 `funding-carry` under SPEC §7.5
+  **D5** (human decision). C4 allowed one evaluation in total, so no family can be
+  holdout-evaluated again; `carry-verdict` refuses, and V1's `run-holdout` must not be run.
+- **V2 funding-rate carry is CLOSED: holdout FAIL** (REPORT §14). BTC spot long + BTCPERP
+  short, 1×. Dev-best C2 had a 4.17% net APR on capital; in the holdout it made 1.00%, below the
+  4% bar, and lost to always-on (1.23%). Funding on the USDC perp has roughly halved.
+  `funding_rates` table + perp candles (`BTC/USDC:USDC`) stay; `pnpm backfill-carry`
+  refreshes them. Watch-out: the 2023-03-11 USDC depeg moved spot/perp basis 11%.
 - **Phase 4 (LLM analyst) is DONE: REPORT §13 written 2026-11-09; analyst OFF**
   via `ENABLE_LLM_ANALYST: "false"` in `docker-compose.local.yml` (overrides
   `.env`). Window was 2026-09-25 17:05Z → 2026-10-25 17:05Z (PREREG Amendment 3);

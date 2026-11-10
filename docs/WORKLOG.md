@@ -1120,3 +1120,17 @@ probe work uncovered a silent mirror bug.
   INTERIM until 100 trips or 2028-03-28. Today: 10 trips (8 shadow + 2 BTC),
   0 won, −334.23 USDC (−0.33% of 100,000). The C3 (ii) DD reference is not
   stored anywhere; read `run-universe` maxDD% for {40,10} at verdict time.
+
+## 2026-11-10 — V2 funding-rate carry: registered (D5), dev, holdout FAIL
+
+- **Human decision:** approve D5, which adds the V2 family `funding-carry` and spends the single C4 holdout. The question: does a BTC spot long + `BTCPERP` short at 1× beat 4%/yr on capital, after costs? Design and plan are in `docs/superpowers/`. Perp fee checked: 0.055% non-VIP (Bybit help centre).
+- **Built:**
+  - `packages/core/src/carry.ts`: the engine, metrics, verdict, dev-best rule and holdout guard. Core tests 62/62.
+  - `funding_rates` table (db:push, additive).
+  - CLIs `backfill-carry`, `preregister-carry`, `run-carry` and `carry-verdict`. The verdict CLI was committed (`5b7a526`) before it was run.
+  - V1's §7 code is untouched.
+- **Data:** 5,284 funding prints from 2022-01-14 08:00Z to 2026-11-10, with 0 gaps; 42,270 perp 1h candles.
+- **Dev** (#48–#51, N = 38): C1 2.67%, **C2 4.17%**, C3 1.11%, C4 2.79% net APR on capital. Dev-best: C2.
+  - C2's 5.09% dev max DD was checked before the holdout run. It is the 2023-03-11 USDC depeg: spot/perp basis reached 11%, and equity went from a peak at 06:00Z to a trough at 20:00Z. The data is real and no rule changed.
+- **Holdout** (#52, once): C2 net APR **1.00%** (FAIL vs 4%), C1 1.23% (so the "beats C1" check FAILs too), best month 30.7%, max DD 0.14%. **VERDICT: FAIL.**
+  - Funding roughly halved, from ~5.7% to ~2.6%/yr on notional. REPORT §14 written. The holdout is spent, and V2 is closed.
