@@ -612,6 +612,31 @@ later reader, from a rule that was quietly tightened or loosened.
   - **Design and plan:** `docs/superpowers/specs/2026-11-10-v2-funding-carry-design.md`,
     `docs/superpowers/plans/2026-11-10-v2-funding-carry.md`. Separate carry CLIs;
     V1's §7 enforcement code is not modified.
+- **D6 — 2026-11-10 — V3: forward-only multi-coin funding carry on paper.**
+  Human decision (2026-11-10). This adds family `funding-carry-v3`
+  (`experiments/funding-carry-v3.json`), with 2 configs, **N 38 → 40**, counted at
+  registration.
+  - **Configs:** K1 always on. K2 is gated by the trailing 7-day funding APR
+    (enter > 10%, exit < 0%).
+  - **Instruments:** the ten `universe.json` coins as spot `X/USDT` long plus an
+    equal `XUSDT` perp short, 1×, at 10,000 USDT each (100,000 pooled per config).
+    Costs as in D5.
+  - **Window:** forward only, from the first 00:00Z after registration, for 6
+    calendar months. Both dates are stored at registration and are immovable.
+    Nothing is backtested before the start. The holdout is spent and is not
+    involved.
+  - **Pass, per config, pooled:** net APR > 4%; best month < 50%; max DD < 5%; for
+    K2, beats K1. Both configs are reported and neither is selected afterwards.
+  - **Interpretation, fixed now:** a PASS supports pursuing a regulated EU perp
+    venue; a FAIL closes funding carry for this project.
+  - **Timing:** recognised after V2's holdout FAIL (REPORT §14). The motive is that
+    alt USDT perps pay the larger, more crowded side of the premium. No V3 statistic
+    was computed before this entry.
+  - **Data rules:**
+    - Bars missing a leg are skipped.
+    - Outage hours are backfilled from Bybit's public history.
+    - A delisted or suspended coin closes at its last joint bar and holds cash.
+  - **Design:** `docs/superpowers/specs/2026-11-10-v3-forward-alt-carry-design.md`.
 
 ---
 

@@ -1,0 +1,10 @@
+{
+  "family": "funding-carry-v3",
+  "_note": "PRE-REGISTERED (SPEC §7.5 D6, 2026-11-10). FORWARD ONLY: 6 calendar months from the first 00:00Z after registration. Ten universe.json coins, spot X/USDT long + equal XUSDT perp short, 1x, 10,000 USDT each. K1 always on (k = 0); K2 gated on the trailing 7-day funding APR (windowDays = 7; k > 0 only marks it as gated). Written before any V3 statistic was computed.",
+  "forward": true,
+  "months": 6,
+  "grid": [
+    { "k": 0, "enterApr": 0, "exitApr": 0 },
+    { "k": 21, "enterApr": 0.1, "exitApr": 0, "windowDays": 7 }
+  ]
+}
