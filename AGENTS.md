@@ -97,8 +97,8 @@ Update it after every significant operational or engineering change.
     N=34, reproducing the 08-12/08-24 prose figures exactly.
   - `HEALTHCHECK_PING_URL` (env, optional): MonitorService pings it every 15
     min; an external dead-man's service alerts when pings STOP. Unset = no-op.
-    Not yet deployed to the container — set the URL in `.env` and redeploy at
-    a convenient hour, or at the soak end.
+    **Deployed 2026-11-10 on Railway** (healthchecks.io, period 15 min, grace
+    30 min, email alert); first ping confirmed 13:2xZ.
 - **VENUE + COSTS + UNIVERSE all changed 2026-08-12** (SPEC §7.5 D1/D2/D3 — read
   them before touching anything cost-related):
   - **Bybit is now BOTH the data and execution venue.** Kraken is no longer used
