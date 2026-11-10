@@ -1134,3 +1134,12 @@ probe work uncovered a silent mirror bug.
   - C2's 5.09% dev max DD was checked before the holdout run. It is the 2023-03-11 USDC depeg: spot/perp basis reached 11%, and equity went from a peak at 06:00Z to a trough at 20:00Z. The data is real and no rule changed.
 - **Holdout** (#52, once): C2 net APR **1.00%** (FAIL vs 4%), C1 1.23% (so the "beats C1" check FAILs too), best month 30.7%, max DD 0.14%. **VERDICT: FAIL.**
   - Funding roughly halved, from ~5.7% to ~2.6%/yr on notional. REPORT §14 written. The holdout is spent, and V2 is closed.
+
+## 2026-11-10 (b) — Published as open source
+
+The human chose to publish under their real name with an MIT licence. Repo: https://github.com/rrLero/microtrading (public).
+- Before publishing:
+  - README rewritten as the public front page; `docs/CASE-STUDY.md` written ("Two honest nulls").
+  - History audit: no secrets ever committed; only `.env.example` was tracked.
+  - Personal ntfy topic example removed from `alerts.service.ts`. `.env.example` line 26 still holds `x7k2f9`; it is also in history since `262eb78`. If that is the live topic, rotate `NTFY_TOPIC`.
+- `data-archive/` and `data/*.csv` are gitignored and not published.
