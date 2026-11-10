@@ -60,10 +60,45 @@ export default function DashboardPage() {
   const shadowEquity = useQuery({ queryKey: ['shadow-equity'], queryFn: () => api.shadowEquity(720) });
   const carry = useQuery({ queryKey: ['carry-forward'], queryFn: api.carryForward });
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const [allActivity, setAllActivity] = React.useState(false);
 
   // Recomputed each render so relative times stay honest between refetches.
   const now = Date.now();
   const s: AgentStatus | undefined = status.data;
+
+  // All ten paper accounts in one list: BTC (main, demo-mirrored) + the nine D4 shadows.
+  const coins = s
+    ? [
+        {
+          coin: s.symbol.split('/')[0]!,
+          main: true,
+          open: !!s.position,
+          position: s.position
+            ? `long @ ${num(s.position.avgEntry, 0)} · stop ${s.position.stop ? num(s.position.stop, 0) : '—'}`
+            : s.killSwitch ? 'halted' : 'flat',
+          toEntry: s.position ? null : (s.channel?.toEntryPct ?? null),
+          equity: s.equity,
+          start: s.initialCash,
+        },
+        ...(shadow.data?.accounts ?? []).map((a) => ({
+          coin: a.symbol.split('/')[0]!,
+          main: false,
+          open: a.positionQty > 0,
+          position: a.killSwitch
+            ? 'halted'
+            : a.positionQty > 0
+              ? `long @ ${num(a.avgEntryPrice, 4)} · stop ${a.stopPrice ? num(a.stopPrice, 4) : '—'}`
+              : 'flat',
+          toEntry: a.positionQty > 0 ? null : a.toEntryPct,
+          equity: a.equity,
+          start: 10_000, // SHADOW-PREREG: 10,000 USDC per shadow account
+        })),
+      ].sort((a, b) => Number(b.open) - Number(a.open) || (a.toEntry ?? 1e9) - (b.toEntry ?? 1e9))
+    : [];
+  const totalEquity = coins.reduce((x, c) => x + c.equity, 0);
+  const totalStart = coins.reduce((x, c) => x + c.start, 0);
+  const pnlTone = (v: number) => (v >= 0 ? 'var(--delta-up)' : 'var(--status-critical)');
+  const feed = toFeed(journal.data ?? []);
   const tickLate = s?.health.lastDecisionAt ? now - Date.parse(s.health.lastDecisionAt) > 100 * 60000 : false;
 
   const state = !s ? 'loading' : s.killSwitch ? 'halted' : !s.loopEnabled ? 'disabled' : tickLate ? 'stalled' : 'armed';
@@ -81,7 +116,9 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-lg font-semibold tracking-tight">MicroTrading</h1>
           <p className="readout text-sm text-muted-foreground">
-            {s ? `${s.symbol} · ${s.strategy.family}(${Object.values(s.strategy.params).join(',')}) · 4h` : 'Loading…'}
+            {s
+              ? `${coins.length} coins on paper · ${s.strategy.family}(${Object.values(s.strategy.params).join(',')}) · 4h`
+              : 'Loading…'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -106,11 +143,74 @@ export default function DashboardPage() {
       {status.isError && (
         <Card>
           <CardContent className="py-4 text-sm" style={{ color: 'var(--status-critical)' }}>
-            Cannot reach the agent API. Check the container is up:{' '}
-            <code className="readout">docker compose -f docker-compose.local.yml ps</code>
+            Cannot reach the agent API. Check the agent service is up:{' '}
+            <code className="readout">railway logs --service agent</code>
           </CardContent>
         </Card>
       )}
+
+      {/* SPEC §7.5 D4: the shadow verdict is pooled at 100 trades — per-coin rows are a breakdown, not a ranking. */}
+      {s && (
+        <Card>
+          <CardHeader className="flex-row items-baseline justify-between">
+            <CardTitle>All coins</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              paper · 10,000 USDC each · BTC since Aug, others since 28 Sep
+            </span>
+          </CardHeader>
+          <CardContent className="pb-5">
+            <div className="grid grid-cols-2 gap-4 pb-4 md:grid-cols-4">
+              <Stat label="Total equity" value={`${num(totalEquity, 0)} USDC`} sub={`started with ${num(totalStart, 0)}`} />
+              <Stat
+                label="Net P&L"
+                value={`${totalEquity - totalStart >= 0 ? '+' : ''}${num(totalEquity - totalStart)} USDC`}
+                tone={pnlTone(totalEquity - totalStart)}
+                sub={`${num(((totalEquity - totalStart) / totalStart) * 100)}% · interim`}
+              />
+              <Stat label="Open positions" value={`${coins.filter((c) => c.open).length} / ${coins.length}`} />
+              <Stat
+                label="Shadow round trips"
+                value={shadow.data ? `${shadow.data.roundTrips} / 100` : '—'}
+                sub={shadow.data ? `${shadow.data.wins} won · verdict at 100` : undefined}
+              />
+            </div>
+            <table className="readout w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted-foreground">
+                  <th className="py-1 font-normal">Coin</th>
+                  <th className="py-1 font-normal">Position</th>
+                  <th className="py-1 text-right font-normal">To entry</th>
+                  <th className="py-1 text-right font-normal">Equity</th>
+                  <th className="py-1 text-right font-normal">P&amp;L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {coins.map((c) => (
+                  <tr key={c.coin} className="border-t border-border">
+                    <td className="py-1">
+                      {c.coin}
+                      {c.main && <span className="ml-1 text-xs text-muted-foreground">main · demo</span>}
+                    </td>
+                    <td className="py-1 text-secondary-foreground">{c.position}</td>
+                    <td className="py-1 text-right">{c.toEntry === null ? '—' : `${c.toEntry.toFixed(2)}%`}</td>
+                    <td className="py-1 text-right">{num(c.equity)}</td>
+                    <td className="py-1 text-right" style={{ color: pnlTone(c.equity - c.start) }}>
+                      {c.equity - c.start >= 0 ? '+' : ''}
+                      {num(c.equity - c.start)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="mt-2 text-xs text-muted-foreground">
+              &ldquo;To entry&rdquo; = how far price must rise to trigger a buy. Only BTC sends orders (to Bybit demo); the
+              other nine are paper-only.
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <h2 className="legend pt-2">BTC/USDC — main account</h2>
 
       {/* Lead with what the machine is watching, not what the account is worth. */}
       {s?.channel && (
@@ -260,55 +360,6 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* SPEC §7.5 D4 / docs/SHADOW-PREREG.md: paper only, verdict at 100 pooled trades — interim numbers are not a result. */}
-      {shadow.data && shadow.data.accounts.length > 0 && (
-        <Card>
-          <CardHeader className="flex-row items-baseline justify-between">
-            <CardTitle>Shadow pairs</CardTitle>
-            <span className="text-xs text-muted-foreground">
-              paper only · tick {ago(shadow.data.lastTickAt, now)} · verdict at 100 pooled trades
-            </span>
-          </CardHeader>
-          <CardContent className="pb-5">
-            <div className="readout mb-3 text-sm">
-              {shadow.data.roundTrips} round trip{shadow.data.roundTrips === 1 ? '' : 's'} · {shadow.data.wins} won · net{' '}
-              {num(shadow.data.netPnl)} USDC
-              <span className="ml-2 text-xs text-muted-foreground">(interim — not a result)</span>
-            </div>
-            <table className="readout w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="py-1 font-normal">Pair</th>
-                  <th className="py-1 font-normal">Position</th>
-                  <th className="py-1 text-right font-normal">To entry</th>
-                  <th className="py-1 text-right font-normal">Equity (USDC)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...shadow.data.accounts]
-                  .sort((a, b) => (a.positionQty > 0 ? -1 : 0) - (b.positionQty > 0 ? -1 : 0) || (a.toEntryPct ?? 1e9) - (b.toEntryPct ?? 1e9))
-                  .map((a) => (
-                  <tr key={a.symbol} className="border-t border-border">
-                    <td className="py-1">{a.symbol.split('/')[0]}</td>
-                    <td className="py-1 text-secondary-foreground">
-                      {a.killSwitch
-                        ? 'halted'
-                        : a.positionQty > 0
-                          ? `long @ ${num(a.avgEntryPrice, 4)} · stop ${a.stopPrice ? num(a.stopPrice, 4) : '—'}`
-                          : 'flat'}
-                    </td>
-                    <td className="py-1 text-right">
-                      {a.positionQty > 0 || a.toEntryPct === null ? '—' : `${a.toEntryPct.toFixed(2)}%`}
-                    </td>
-                    <td className="py-1 text-right">{num(a.equity)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Every paper fill on every pair; the Activity feed below shows BTC only. */}
       <Card>
         <CardHeader className="flex-row items-baseline justify-between">
@@ -357,42 +408,45 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex-row items-baseline justify-between">
-          <CardTitle>Equity</CardTitle>
-          <span className="text-xs text-muted-foreground">
-            {s ? `${num(s.equity - s.initialCash)} USDC vs opening balance` : 'paper account'}
-          </span>
-        </CardHeader>
-        <CardContent>
-          <EquityChart points={(equity.data ?? []).map((p) => ({ ts: p.ts, equity: p.equity }))} baseline={s?.initialCash} />
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-baseline justify-between">
+            <CardTitle>BTC equity</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              {s ? `${num(s.equity - s.initialCash)} USDC vs opening balance` : 'paper account'}
+            </span>
+          </CardHeader>
+          <CardContent>
+            <EquityChart points={(equity.data ?? []).map((p) => ({ ts: p.ts, equity: p.equity }))} baseline={s?.initialCash} />
+          </CardContent>
+        </Card>
+
+        {/*
+          D4: one combined line on purpose — the pre-registered verdict is pooled,
+          and nine separate lines invite picking the pair that looks best.
+        */}
+        {shadowEquity.data && shadowEquity.data.accounts > 0 && (
+          <Card>
+            <CardHeader className="flex-row items-baseline justify-between">
+              <CardTitle>Other 9 — combined equity</CardTitle>
+              <span className="text-xs text-muted-foreground">
+                {shadowEquity.data.points.length > 0
+                  ? `${num(shadowEquity.data.points[shadowEquity.data.points.length - 1]!.equity - shadowEquity.data.start)} USDC vs ${shadowEquity.data.accounts} × 10,000`
+                  : 'paper, interim'}
+              </span>
+            </CardHeader>
+            <CardContent>
+              <EquityChart points={shadowEquity.data.points} baseline={shadowEquity.data.start} />
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/*
         Phase 4 is observability only: nothing reads these notes. The guardrail
         probabilities are shown as plain numbers — PHASE4-PREREG Amendment 2 sets
         no threshold, so the UI does not colour one in.
       */}
-      {/*
-        D4: one combined line on purpose — the pre-registered verdict is pooled,
-        and nine separate lines invite picking the pair that looks best.
-      */}
-      {shadowEquity.data && shadowEquity.data.accounts > 0 && (
-        <Card>
-          <CardHeader className="flex-row items-baseline justify-between">
-            <CardTitle>Shadow pairs — combined equity</CardTitle>
-            <span className="text-xs text-muted-foreground">
-              {shadowEquity.data.points.length > 0
-                ? `${num(shadowEquity.data.points[shadowEquity.data.points.length - 1]!.equity - shadowEquity.data.start)} USDC vs ${shadowEquity.data.accounts} × 10,000 · paper, interim`
-                : 'paper, interim'}
-            </span>
-          </CardHeader>
-          <CardContent>
-            <EquityChart points={shadowEquity.data.points} baseline={shadowEquity.data.start} />
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader className="flex-row items-baseline justify-between">
@@ -443,7 +497,7 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <ul className="divide-y divide-border">
-            {toFeed(journal.data ?? []).map((item, i, all) => {
+            {(allActivity ? feed : feed.slice(0, 15)).map((item, i, all) => {
               const sev = item.sev;
               const r = item.rows[0]!;
               const day = new Date(item.at).toDateString();
@@ -498,6 +552,11 @@ export default function DashboardPage() {
               </li>
             )}
           </ul>
+          {feed.length > 15 && (
+            <button className="mt-2 text-xs text-muted-foreground underline" onClick={() => setAllActivity(!allActivity)}>
+              {allActivity ? 'Show less' : `Show all ${feed.length}`}
+            </button>
+          )}
         </CardContent>
       </Card>
 
