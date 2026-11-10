@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 /**
  * Push alerts via ntfy.sh (SPEC §8 watchdogs).
  * Setup: pick a hard-to-guess topic name (it's the only auth on the free tier,
- * e.g. microtrading-lero-x7k2f9), set NTFY_TOPIC in .env, subscribe to the
+ * e.g. microtrading-<random-suffix>), set NTFY_TOPIC in .env, subscribe to the
  * same topic in the ntfy mobile app. Unset topic → alerts log-only.
  * Dedup: identical alert keys are suppressed for 6h so a persistent condition
  * doesn't melt your phone.
