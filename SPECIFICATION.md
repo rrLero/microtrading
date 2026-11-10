@@ -585,6 +585,33 @@ later reader, from a rule that was quietly tightened or loosened.
   trades/yr), not a result; the verdict rule, horizon and cost sensitivity are
   fixed in `docs/SHADOW-PREREG.md` before the first shadow tick. The traded
   pair, its loop and the Phase 4 window are unchanged.
+- **D5 — 2026-11-10 — V2: funding-rate carry registered; it spends the single
+  C4 holdout evaluation.** Human decision (2026-11-10). It adds family
+  `funding-carry` (`experiments/funding-carry.json`, 4 configs, **N 34 → 38**,
+  within C5's 45). The position is a BTC spot long plus an equal-quantity short of
+  Bybit `BTCPERP` (USDC perp) at 1× on capital C. The family collects funding,
+  not a price forecast.
+  - **Timing:** recognised **after** the V1 null. The motive is that V1 has no
+    edge to sell or trade. No funding statistic was computed before this entry;
+    only the three latest prints were seen during the API check.
+  - **Costs:** spot 0.10% taker; perp 0.055% taker, Bybit's published non-VIP
+    USDC-perpetual rate (bybit.com help centre, "Perpetual Futures Contract Fees
+    Explained", read 2026-11-10); 0.03% slippage per leg per side.
+  - **Splits:** dev 2022-01-14 → 2025-07-31; holdout 2025-08-01 → 2026-07-31
+    (C4's boundaries; soak data unused).
+  - **The holdout:** C4 allows one holdout evaluation total, and V1 never spent it
+    (REPORT §1.2). **V2 spends it**: one run, on the dev-best config by net APR,
+    with C1 (always on) printed alongside as a pre-named benchmark. After this
+    run no family can be holdout-evaluated again.
+  - **Pass criteria (all must hold):** net APR on C > 4%; beats C1 when the
+    chosen config is gated; best month < 50% of net; max DD < 5%.
+  - **Dev kill:** no config with dev net APR > 0, in which case V2 stops and the
+    holdout is not spent.
+  - **Out of scope:** real money. Bybit EU appears to be spot-only for EU
+    retail, and the gate is recorded in the design.
+  - **Design and plan:** `docs/superpowers/specs/2026-11-10-v2-funding-carry-design.md`,
+    `docs/superpowers/plans/2026-11-10-v2-funding-carry.md`. Separate carry CLIs;
+    V1's §7 enforcement code is not modified.
 
 ---
 

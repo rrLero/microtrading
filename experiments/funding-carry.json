@@ -1,0 +1,10 @@
+{
+  "family": "funding-carry",
+  "_note": "PRE-REGISTERED GRID (SPEC §7.5 D5, 2026-11-10). V2: BTC spot long + equal BTCPERP short, 1x on capital C. k = trailing funding prints (8h each); APRs are fractions (mean rate x 1095). k = 0 means always on (C1, the baseline). Order is C1..C4. Written before any funding statistic was computed.",
+  "grid": [
+    { "k": 0, "enterApr": 0, "exitApr": 0 },
+    { "k": 21, "enterApr": 0.1, "exitApr": 0 },
+    { "k": 21, "enterApr": 0.2, "exitApr": 0.05 },
+    { "k": 63, "enterApr": 0.1, "exitApr": 0 }
+  ]
+}
