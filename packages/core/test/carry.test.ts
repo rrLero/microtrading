@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CARRY_COSTS, assertHoldoutUnspent, carryMetrics, carryVerdict, joinBars, pickDevBest, runCarry, trailingApr,
+  CARRY_COSTS, assertHoldoutUnspent, carryMetrics, carryVerdict, joinBars, pickDevBest, poolRuns, runCarry, trailingApr,
+  trailingAprWindow,
   type CarryBar, type CarryMetrics, type CarryRun, type FundingPrint,
 } from '../src/carry.js';
 import type { Candle } from '../src/types.js';
@@ -140,5 +141,52 @@ describe('assertHoldoutUnspent', () => {
   it('assertHoldoutUnspent throws when any family has a holdout row', () => {
     expect(() => assertHoldoutUnspent([])).not.toThrow();
     expect(() => assertHoldoutUnspent([{ strategyFamily: 'donchian-breakout' }])).toThrow(/donchian-breakout/);
+  });
+});
+
+describe('trailingAprWindow (V3)', () => {
+  const W = 7 * 86_400_000;
+  it('trailingAprWindow matches trailingApr at 8h spacing', () => {
+    const f = Array.from({ length: 30 }, (_, i) => ({ ts: T0 + i * 8 * H, rate: 0.0001 * (1 + (i % 3)) }));
+    const at = f[29]!.ts;
+    expect(trailingAprWindow(f, at, W)).toBeCloseTo(trailingApr(f, at, 21)!, 9);
+  });
+
+  it('trailingAprWindow handles mixed 8h/1h spacing', () => {
+    // 7 days of 1h prints at 0.0001 each → 0.0001 × 8760 per year
+    const f = Array.from({ length: 168 }, (_, i) => ({ ts: T0 + i * H, rate: 0.0001 }));
+    expect(trailingAprWindow(f, f.at(-1)!.ts, W)).toBeCloseTo(0.0001 * 8760, 6);
+  });
+
+  it('trailingAprWindow returns null with no prints in window', () => {
+    expect(trailingAprWindow([{ ts: T0, rate: 0.001 }], T0 + 30 * 86_400_000, W)).toBeNull();
+  });
+
+  it('runCarry uses the window signal when windowDays is set', () => {
+    const r = runCarry(bars(32), prints([0.2 / 1095, 0.2 / 1095, -0.1 / 1095]), { k: 21, enterApr: 0.1, exitApr: 0, windowDays: 7 }, CARRY_COSTS, C, T0, T0 + 32 * H);
+    // 08:00 one print → null; 16:00 mean APR 0.2 → enter; 24:00 mean 0.1 → hold; closed at window end
+    expect(r.barsInMarket).toBe(16);
+    expect(r.roundTrips).toBe(1);
+  });
+});
+
+describe('poolRuns (V3)', () => {
+  const run = (pts: [number, number][], extra: Partial<CarryRun> = {}): CarryRun => ({
+    equity: pts.map(([ts, equity]) => ({ ts, equity })), finalEquity: pts.at(-1)![1],
+    roundTrips: 1, rebalances: 0, fundingEarned: 1, costsPaid: 2, barsInMarket: pts.length, ...extra,
+  });
+  it('poolRuns sums equity across coins', () => {
+    const p = poolRuns([run([[1, 100], [2, 110]]), run([[1, 100], [2, 90]])], 100);
+    expect(p.equity.map((e) => e.equity)).toEqual([200, 200]);
+    expect(p.finalEquity).toBe(200);
+    expect(p.fundingEarned).toBe(2);
+    expect(p.costsPaid).toBe(4);
+    expect(carryMetrics(p, 200).timeInMarket).toBeCloseTo(1, 9);
+  });
+
+  it("poolRuns carries a coin's last equity forward", () => {
+    const p = poolRuns([run([[1, 100], [2, 105], [3, 106]]), run([[1, 100], [2, 97]])], 100);
+    expect(p.equity.map((e) => e.equity)).toEqual([200, 202, 203]);
+    expect(p.finalEquity).toBe(203);
   });
 });

@@ -7,7 +7,7 @@ import type { Candle } from './types.js';
 export interface FundingPrint { ts: number; rate: number } // rate per 8h settlement, fraction
 export interface CarryBar { ts: number; spotOpen: number; spotClose: number; perpOpen: number; perpClose: number }
 /** k = trailing prints for the signal; k = 0 means always on (C1). APRs are fractions. */
-export interface CarryParams { k: number; enterApr: number; exitApr: number }
+export interface CarryParams { k: number; enterApr: number; exitApr: number; windowDays?: number }
 export interface CarryCosts { spotFee: number; perpFee: number; slippage: number }
 export const CARRY_COSTS: CarryCosts = { spotFee: 0.001, perpFee: 0.00055, slippage: 0.0003 };
 export interface CarryRun {
@@ -42,6 +42,49 @@ export function trailingApr(funding: FundingPrint[], atTs: number, k: number): n
   if (k <= 0 || past.length < k) return null;
   const last = past.slice(-k);
   return (last.reduce((a, f) => a + f.rate, 0) / k) * PRINTS_PER_YEAR;
+}
+
+const DAY_MS = 86_400_000;
+const YEAR_MS = 365 * DAY_MS;
+
+/**
+ * V3 (D6): mean of the prints in (atTs − windowMs, atTs], annualised by their median
+ * spacing — robust to Bybit shortening a coin's funding interval. Null below 2 prints.
+ */
+export function trailingAprWindow(funding: FundingPrint[], atTs: number, windowMs: number): number | null {
+  const w = funding.filter((f) => f.ts > atTs - windowMs && f.ts <= atTs).sort((a, b) => a.ts - b.ts);
+  if (w.length < 2) return null;
+  const gaps = w.slice(1).map((f, i) => f.ts - w[i]!.ts).sort((a, b) => a - b);
+  const median = gaps[Math.floor(gaps.length / 2)]!;
+  return (w.reduce((a, f) => a + f.rate, 0) / w.length) * (YEAR_MS / median);
+}
+
+/**
+ * V3 (D6): pooled account over independent per-coin runs. Each coin's equity is
+ * carried forward after its last point (a delisted coin holds cash) and is
+ * `capitalEach` before its first.
+ */
+export function poolRuns(runs: CarryRun[], capitalEach: number): CarryRun {
+  const ts = [...new Set(runs.flatMap((r) => r.equity.map((e) => e.ts)))].sort((a, b) => a - b);
+  const last = runs.map(() => capitalEach);
+  const idx = runs.map(() => 0);
+  const equity = ts.map((t) => {
+    runs.forEach((r, i) => {
+      while (idx[i]! < r.equity.length && r.equity[idx[i]!]!.ts <= t) last[i] = r.equity[idx[i]!++]!.equity;
+    });
+    return { ts: t, equity: last.reduce((a, b) => a + b, 0) };
+  });
+  const sum = (f: (r: CarryRun) => number) => runs.reduce((a, r) => a + f(r), 0);
+  return {
+    equity,
+    finalEquity: sum((r) => r.finalEquity),
+    roundTrips: sum((r) => r.roundTrips),
+    rebalances: sum((r) => r.rebalances),
+    fundingEarned: sum((r) => r.fundingEarned),
+    costsPaid: sum((r) => r.costsPaid),
+    // average per coin, so carryMetrics' timeInMarket reads as the share of coins in market
+    barsInMarket: runs.length ? sum((r) => r.barsInMarket) / runs.length : 0,
+  };
 }
 
 export function runCarry(
@@ -91,7 +134,7 @@ export function runCarry(
         fundingEarned += pay;
       }
       if (p.k > 0) {
-        const apr = trailingApr(sorted, S.ts, p.k);
+        const apr = p.windowDays ? trailingAprWindow(sorted, S.ts, p.windowDays * DAY_MS) : trailingApr(sorted, S.ts, p.k);
         if (apr === null) continue;
         if (qty === 0 && apr > p.enterApr) open(bar.spotOpen, bar.perpOpen, bar.ts);
         else if (qty > 0 && apr < p.exitApr) {
