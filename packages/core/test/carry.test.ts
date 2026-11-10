@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { CARRY_COSTS, joinBars, runCarry, trailingApr, type CarryBar, type FundingPrint } from '../src/carry.js';
+import {
+  CARRY_COSTS, assertHoldoutUnspent, carryMetrics, carryVerdict, joinBars, pickDevBest, runCarry, trailingApr,
+  type CarryBar, type CarryMetrics, type CarryRun, type FundingPrint,
+} from '../src/carry.js';
 import type { Candle } from '../src/types.js';
 
 const H = 3_600_000;
@@ -70,5 +73,72 @@ describe('joinBars', () => {
     const { bars: b, skipped } = joinBars([c(T0), c(T0 + 2 * H)], [c(T0), c(T0 + H), c(T0 + 2 * H)]);
     expect(skipped).toBe(1);
     expect(b.map((x) => x.ts)).toEqual([T0, T0 + 2 * H]);
+  });
+});
+
+const DAY = 86_400_000;
+const fakeRun = (points: [number, number][]): CarryRun => ({
+  equity: points.map(([ts, equity]) => ({ ts, equity })), finalEquity: points.at(-1)![1],
+  roundTrips: 1, rebalances: 0, fundingEarned: 0, costsPaid: 0, barsInMarket: points.length,
+});
+const metric = (over: Partial<CarryMetrics>): CarryMetrics => ({
+  netApr: 0.05, maxDrawdownPct: 0.01, worst30dReturn: 0, bestMonth: '2025-09', bestMonthShare: 0.2, byYear: [],
+  timeInMarket: 1, fundingEarned: 0, costsPaid: 0, roundTrips: 1, rebalances: 0, days: 365, ...over,
+});
+
+describe('carryMetrics', () => {
+  it('netApr annualises simple return over the run days', () => {
+    const m = carryMetrics(fakeRun([[T0, 10_000], [T0 + 365.25 * DAY, 10_400]]), 10_000);
+    expect(m.netApr).toBeCloseTo(0.04, 9);
+  });
+
+  it('max drawdown is peak-to-trough on marked equity', () => {
+    const m = carryMetrics(fakeRun([[T0, 100], [T0 + DAY, 110], [T0 + 2 * DAY, 99], [T0 + 3 * DAY, 120]]), 100);
+    expect(m.maxDrawdownPct).toBeCloseTo(0.1, 9);
+  });
+
+  it('best-month share is NaN when net is not positive', () => {
+    expect(carryMetrics(fakeRun([[T0, 100], [T0 + 40 * DAY, 99]]), 100).bestMonthShare).toBeNaN();
+  });
+
+  it('best-month share is the best month over total net', () => {
+    // Jan +10, Feb +30 → Feb carries 75%
+    const m = carryMetrics(fakeRun([[T0, 100], [T0 + 10 * DAY, 110], [T0 + 40 * DAY, 140]]), 100);
+    expect(m.bestMonth).toBe('2023-02');
+    expect(m.bestMonthShare).toBeCloseTo(0.75, 9);
+  });
+});
+
+describe('carryVerdict', () => {
+  it('verdict fails at exactly 4% APR and passes above it', () => {
+    expect(carryVerdict(metric({ netApr: 0.04 }), null).pass).toBe(false);
+    expect(carryVerdict(metric({ netApr: 0.0401 }), null).pass).toBe(true);
+  });
+
+  it('verdict marks the C1 comparison not applicable when c1 is null', () => {
+    const c = carryVerdict(metric({}), null).criteria.find((x) => x.name === 'beats C1')!;
+    expect(c.pass).toBe(true);
+    expect(c.detail).toContain('n/a');
+    expect(carryVerdict(metric({ netApr: 0.05 }), metric({ netApr: 0.06 })).pass).toBe(false);
+  });
+
+  it('fails on concentration and on drawdown', () => {
+    expect(carryVerdict(metric({ bestMonthShare: 0.5 }), null).pass).toBe(false);
+    expect(carryVerdict(metric({ maxDrawdownPct: 0.05 }), null).pass).toBe(false);
+  });
+});
+
+describe('pickDevBest', () => {
+  it('pickDevBest breaks ties toward the lower index', () => {
+    const p = { k: 0, enterApr: 0, exitApr: 0 };
+    expect(pickDevBest([{ params: p, m: metric({ netApr: 0.1 }) }, { params: p, m: metric({ netApr: 0.1 }) }])).toBe(0);
+    expect(pickDevBest([{ params: p, m: metric({ netApr: 0.1 }) }, { params: p, m: metric({ netApr: 0.2 }) }])).toBe(1);
+  });
+});
+
+describe('assertHoldoutUnspent', () => {
+  it('assertHoldoutUnspent throws when any family has a holdout row', () => {
+    expect(() => assertHoldoutUnspent([])).not.toThrow();
+    expect(() => assertHoldoutUnspent([{ strategyFamily: 'donchian-breakout' }])).toThrow(/donchian-breakout/);
   });
 });
