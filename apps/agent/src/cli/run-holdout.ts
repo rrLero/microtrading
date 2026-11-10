@@ -1,7 +1,10 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import { computeMetrics, runBacktest } from '@microtrading/core';
+import { eq } from 'drizzle-orm';
+import { assertHoldoutUnspent, computeMetrics, runBacktest } from '@microtrading/core';
+import { DbService } from '../db/db.service.js';
+import { experiments as experimentsTable } from '../db/schema.js';
 import { AppModule } from '../app.module.js';
 import { CandleRepository } from '../market-data/candle-repository.js';
 import { btFor, ExperimentService, FACTORIES, type StrategyFamily } from '../experiments/experiment.service.js';
@@ -22,6 +25,16 @@ async function main(): Promise<void> {
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['warn', 'error'] });
   try {
+    // C4 + D5 (2026-11-10): ONE holdout evaluation in total, across all families — checked first.
+    try {
+      assertHoldoutUnspent(
+        await app.get(DbService).db.select().from(experimentsTable).where(eq(experimentsTable.kind, 'holdout-evaluation')),
+      );
+    } catch (e) {
+      console.error(`REFUSED: ${(e as Error).message}`);
+      process.exitCode = 1;
+      return;
+    }
     const experiments = app.get(ExperimentService);
     const repo = app.get(CandleRepository);
     const config = app.get(ConfigService);
