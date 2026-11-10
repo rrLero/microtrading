@@ -7,6 +7,7 @@ import { journal, paperAccount } from '../db/schema.js';
 import { CandleRepository } from '../market-data/candle-repository.js';
 import { PaperBrokerService } from '../trading/paper-broker.service.js';
 import { btFor, type StrategyFamily } from '../experiments/experiment.service.js';
+import { latestV3Snapshot, v3Registration } from '../experiments/carry-registry.js';
 
 /**
  * READ-ONLY HTTP API (SPEC Phase 3) — feeds the dashboard.
@@ -276,6 +277,16 @@ export class StatusController {
         }),
       ),
     };
+  }
+
+  /** V3 forward carry (SPEC §7.5 D6): registration dates + latest hourly snapshot. Interim, never the verdict. */
+  @Get('carry-forward')
+  async carryForward() {
+    const reg = await v3Registration(this.dbs);
+    if (!reg) return { state: 'unregistered' as const };
+    const latest = await latestV3Snapshot(this.dbs);
+    const state = Date.now() < reg.startTs ? 'pending' : Date.now() >= reg.endTs ? 'ended' : 'running';
+    return { state, startTs: reg.startTs, endTs: reg.endTs, snapshotAt: latest?.at ?? null, snapshot: latest?.payload ?? null };
   }
 
   @Get('equity')

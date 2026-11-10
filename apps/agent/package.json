@@ -25,6 +25,7 @@
     "preregister-carry": "node --env-file=.env dist/cli/preregister-carry.js",
     "run-carry": "node --env-file=.env dist/cli/run-carry.js",
     "carry-verdict": "node --env-file=.env dist/cli/carry-verdict.js",
+    "v3-carry-verdict": "node --env-file=.env dist/cli/v3-carry-verdict.js",
     "calibration-probe": "node --env-file=.env dist/cli/calibration-probe.js",
     "demo-ping": "node --env-file=.env dist/cli/demo-ping.js",
     "kill-switch": "node --env-file=.env dist/cli/kill-switch.js",

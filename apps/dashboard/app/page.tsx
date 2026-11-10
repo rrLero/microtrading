@@ -58,6 +58,7 @@ export default function DashboardPage() {
   const shadow = useQuery({ queryKey: ['shadow'], queryFn: api.shadow });
   const trades = useQuery({ queryKey: ['trades'], queryFn: () => api.trades(30) });
   const shadowEquity = useQuery({ queryKey: ['shadow-equity'], queryFn: () => api.shadowEquity(720) });
+  const carry = useQuery({ queryKey: ['carry-forward'], queryFn: api.carryForward });
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   // Recomputed each render so relative times stay honest between refetches.
@@ -209,6 +210,55 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* SPEC §7.5 D6: V3 forward carry — paper, nothing trades; interim snapshots are not a result. */}
+      {carry.data && carry.data.state !== 'unregistered' && (
+        <Card>
+          <CardHeader className="flex-row items-baseline justify-between">
+            <CardTitle>Funding carry (V3, forward)</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              10 coins · spot long + perp short · {carry.data.startTs ? new Date(carry.data.startTs).toISOString().slice(0, 10) : '—'} →{' '}
+              {carry.data.endTs ? new Date(carry.data.endTs).toISOString().slice(0, 10) : '—'} · pass &gt; 4%/yr
+            </span>
+          </CardHeader>
+          <CardContent className="pb-5">
+            {carry.data.state === 'pending' || !carry.data.snapshot ? (
+              <div className="text-sm text-muted-foreground">Starts {carry.data.startTs ? new Date(carry.data.startTs).toISOString().slice(0, 16).replace('T', ' ') : '—'} UTC — warming up funding history.</div>
+            ) : (
+              <>
+                <table className="readout w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-muted-foreground">
+                      <th className="py-1 font-normal">Config</th>
+                      <th className="py-1 text-right font-normal">Equity (USDT)</th>
+                      <th className="py-1 text-right font-normal">Net APR</th>
+                      <th className="py-1 text-right font-normal">Funding</th>
+                      <th className="py-1 text-right font-normal">Costs</th>
+                      <th className="py-1 text-right font-normal">In market</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {carry.data.snapshot.configs.map((c) => (
+                      <tr key={c.id} className="border-t border-border/50">
+                        <td className="py-1">{c.id === 'K1' ? 'K1 always on' : 'K2 funding-gated'}</td>
+                        <td className="py-1 text-right">{num(c.finalEquity, 0)}</td>
+                        <td className="py-1 text-right">{num(c.pooled.netApr * 100)}%</td>
+                        <td className="py-1 text-right">{num(c.pooled.fundingEarned)}</td>
+                        <td className="py-1 text-right">{num(c.pooled.costsPaid)}</td>
+                        <td className="py-1 text-right">{num(c.pooled.timeInMarket * 100, 0)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  vs {num(carry.data.snapshot.capital, 0)} per config · {num(carry.data.snapshot.configs[0]?.pooled.days ?? 0, 1)} days in · updated{' '}
+                  {ago(carry.data.snapshotAt ?? null, now)} · open positions marked as if closed · interim — not the verdict
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* SPEC §7.5 D4 / docs/SHADOW-PREREG.md: paper only, verdict at 100 pooled trades — interim numbers are not a result. */}
       {shadow.data && shadow.data.accounts.length > 0 && (

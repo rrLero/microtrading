@@ -78,4 +78,22 @@ export const api = {
     ),
   journalKind: (kind: string, limit = 5) => get<JournalRow[]>(`/agent/journal?limit=${limit}&kind=${kind}`),
   equity: (hours = 720) => get<EquityPointDto[]>(`/agent/equity?hours=${hours}`),
+  carryForward: () => get<CarryForward>('/agent/carry-forward'),
 };
+
+/** V3 forward carry (SPEC §7.5 D6) — interim snapshot, never the verdict. */
+export interface CarryForward {
+  state: 'unregistered' | 'pending' | 'running' | 'ended';
+  startTs?: number;
+  endTs?: number;
+  snapshotAt?: string | null;
+  snapshot?: {
+    capital: number;
+    configs: {
+      id: string;
+      finalEquity: number;
+      pooled: { netApr: number; fundingEarned: number; costsPaid: number; maxDrawdownPct: number; timeInMarket: number; days: number };
+      perCoin: { coin: string; finalEquity: number; fundingEarned: number; timeInMarket: number }[];
+    }[];
+  } | null;
+}
