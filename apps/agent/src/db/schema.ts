@@ -71,3 +71,18 @@ export const experiments = pgTable(
   },
   (t) => [index('experiments_family_idx').on(t.strategyFamily)],
 );
+
+/**
+ * Perp funding prints (V2, SPEC §7.5 D5). One row per settlement, rate per 8h as a
+ * fraction; positive = longs pay shorts. Idempotent on (symbol, ts).
+ */
+export const fundingRates = pgTable(
+  'funding_rates',
+  {
+    symbol: text('symbol').notNull(),
+    ts: bigint('ts', { mode: 'number' }).notNull(),
+    rate: doublePrecision('rate').notNull(),
+    source: text('source').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.ts] })],
+);
