@@ -15,8 +15,9 @@
   (e.g. `kill-switch.js on|off`, `shadow-verdict.js`, `calibrate-report.js`).
 - Before claiming a fix works: `pnpm build && pnpm test`, and typecheck the
   agent with `./node_modules/.bin/tsc -p tsconfig.json --noEmit` from apps/agent.
-- **Every push to `main` auto-deploys the agent and the dashboard on Railway.**
-  Push only between :10 and :55 UTC, never across the :02/:04/:07 ticks or the
-  13:37 probe. Verify it landed with `railway ssh --service agent -- ls dist/...`.
+- **Deploy = push, then `railway redeploy --service agent --from-source -y`** (same
+  for `dashboard`). Pushes do NOT auto-deploy (observed 2026-11-10). Deploy only
+  between :10 and :55 UTC, never across the :02/:04/:07/:09 ticks or the 13:37
+  probe. Verify it landed with `railway ssh --service agent -- ls dist/...`.
 - The soak (SPEC Phase 3) rewards boring uptime. Prefer minimal, reversible
   changes; anything touching the trading loop deserves a kill-switch-aware plan.

@@ -1143,3 +1143,17 @@ The human chose to publish under their real name with an MIT licence. Repo: http
   - History audit: no secrets ever committed; only `.env.example` was tracked.
   - Personal ntfy topic example removed from `alerts.service.ts`. `.env.example` line 26 still holds `x7k2f9`; it is also in history since `262eb78`. If that is the live topic, rotate `NTFY_TOPIC`.
 - `data-archive/` and `data/*.csv` are gitignored and not published.
+
+## 2026-11-10 (c) — Railway, analyst back on, V3 registered
+
+- **Hosting:** production moved to Railway (EU West) at 09:19Z.
+  - Local agent stopped; `pg_dump` restored over `railway ssh`; row counts are identical (journal 43,283, candles 522,443, 10 accounts, 52 experiments, 5,284 funding prints).
+  - US region rejected because Bybit blocks US IPs.
+  - Secrets were pasted by the human via `--stdin`.
+  - Demo keys verified (`demo-ping`), and ntfy is on.
+  - Pushes do not auto-deploy; deploys use `railway redeploy --from-source`.
+- **Analyst:** `ENABLE_LLM_ANALYST=true` (human request). Observability only; §13 stays closed.
+- **V3 (D6, human-approved):** forward multi-coin funding carry.
+  - Design and plan are in `docs/superpowers/`. Core gained `trailingAprWindow` and `poolRuns`; tests 68/68.
+  - `CarryForwardService` (:09), `/api/carry-forward`, a dashboard card and `v3-carry-verdict` were all deployed before registration.
+  - Registered on Railway: **start 2026-11-11 00:00Z, end 2027-05-11 00:00Z, N = 40.**

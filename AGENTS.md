@@ -160,7 +160,18 @@ Update it after every significant operational or engineering change.
   4% bar, and lost to always-on (1.23%). Funding on the USDC perp has roughly halved.
   `funding_rates` table + perp candles (`BTC/USDC:USDC`) stay; `pnpm backfill-carry`
   refreshes them. Watch-out: the 2023-03-11 USDC depeg moved spot/perp basis 11%.
-- **Phase 4 (LLM analyst) is DONE: REPORT §13 written 2026-11-09; analyst OFF**
+- **V3 forward multi-coin carry is RUNNING (SPEC §7.5 D6, N = 40)**:
+  - Window 2026-11-11 00:00Z → 2027-05-11 00:00Z, immovable.
+  - K1 always on and K2 gated on the 7-day funding APR, on the ten universe coins
+    as spot `X/USDT` + `X/USDT:USDT` perp, 10,000 USDT each.
+  - Nothing trades: `CarryForwardService` (:09, `ENABLE_CARRY_FORWARD`) ingests and
+    journals `carry-forward` snapshots, and the dashboard card shows them.
+  - Verdict once at the end: `railway ssh --service agent -- node dist/cli/v3-carry-verdict.js`.
+    Before the end it prints INTERIM only.
+  - Do not drop coins, re-tune or stop early on interim numbers.
+- **LLM analyst re-enabled 2026-11-10 on Railway** (`ENABLE_LLM_ANALYST=true`), still
+  observability only. REPORT §13's population is closed; new rows never enter it.
+- **Phase 4 (LLM analyst) is DONE: REPORT §13 written 2026-11-09; analyst was OFF until 2026-11-10**
   via `ENABLE_LLM_ANALYST: "false"` in `docker-compose.local.yml` (overrides
   `.env`). Window was 2026-09-25 17:05Z → 2026-10-25 17:05Z (PREREG Amendment 3);
   §13's population is closed — rows outside it are never added. Model
