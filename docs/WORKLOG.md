@@ -1170,3 +1170,20 @@ The human chose to publish under their real name with an MIT licence. Repo: http
   `BYBIT_DEMO_API_*` in Railway. The redeploy landed at 17:56Z and `demo-ping`
   passed.
 - **The key expires again around 2027-02-11.** Renew it before then.
+
+## 2026-11-11 (b) — Analyst scorer; V3 rows readable on the dashboard
+
+- New `analyst-score` CLI scores each daily analyst call against BTC's
+  1/7/30-day forward return. It is observation only: not a trial, N
+  unchanged. The rules were fixed in `packages/core/src/analyst-score.ts`
+  before the first run.
+- First run, 41 daily calls (2026-09-26 → 11-11): 7d hit rate 29/36 = 80.6%
+  (bear 10/11, range 18/24). BTC fell over the whole window (mean 7d −1.8%,
+  30d −7.5%), so "bear" was easy to get right. Brier skill was **−0.29**:
+  stated confidence (~0.6) is worse than a constant guess, so it is
+  under-confident and does not rank its own calls. About 5 independent 7d
+  windows. **No evidence the label is usable as a trade input.** It has not
+  been compared with a trivial trailing-return rule yet.
+- The dashboard feed now renders `carry-forward` rows as
+  "V3 carry snapshot (interim) · K1 … · K2 …". Agent and dashboard
+  redeployed 18:11Z.
