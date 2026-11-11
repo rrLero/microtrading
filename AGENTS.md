@@ -72,6 +72,9 @@ Update it after every significant operational or engineering change.
     The agent has no public port; the dashboard reaches it over the private network.
   - Pushes do NOT auto-deploy: run `railway redeploy` (see CLAUDE.md). Secrets
     (BYBIT_DEMO_*, TYPESAFE_API_KEY, NTFY_TOPIC) are set by the human in Railway.
+  - **The Bybit demo key expires ~2027-02-11** (created 2026-11-11 with no IP binding; Bybit
+    expires those after 3 months and emails only afterwards). Renew it by 2027-02-01.
+    Re-score the analyst (`analyst-score`) around then too (WORKLOG 2026-11-11 b).
 - **Phase 3 soak ENDED 2026-09-06 00:02Z — C6 coverage NOT met: 632/673 live
   ticks = 93.9% < 95%** (SPEC §7.5 C9; do not re-litigate the drill carve-out).
   Cause: host down overnight (08-22/23 18 ticks, 08-31/09-01 11 ticks), silently —
