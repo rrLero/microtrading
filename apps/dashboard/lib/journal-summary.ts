@@ -34,6 +34,13 @@ export function summarise(row: JournalRow): string {
     }
     case 'analyst-check':
       return `Guardrail on analyst #${p['analystJournalId']}: predicts price ${n(p['predictsPrice'])} · recommends trade ${n(p['recommendsTrade'])} · contradicts inputs ${n(p['contradictsInputs'])}`;
+    case 'carry-forward': {
+      // Each config runs the full pooled capital (10 coins × 10,000).
+      const ks = ((p['configs'] ?? []) as any[]).map(
+        (c) => `${c.id} ${n(c.finalEquity)} (${((c.finalEquity / p['capital'] - 1) * 100).toFixed(2)}%)`,
+      );
+      return `V3 carry snapshot (interim) · day ${n(p['configs']?.[0]?.pooled?.days, 1)} · ${ks.join(' · ')}`;
+    }
     case 'risk':
       return `Blocked: ${p['event'] ?? 'risk rule'}${p['symbol'] ? ` on ${p['symbol']}` : ''}`;
     case 'ops':

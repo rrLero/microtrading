@@ -21,6 +21,7 @@
     "backfill-demo-readback": "node --env-file=.env dist/cli/backfill-demo-readback.js",
     "calibrate-report": "node --env-file=.env dist/cli/calibrate-report.js",
     "shadow-verdict": "node --env-file=.env dist/cli/shadow-verdict.js",
+    "analyst-score": "node --env-file=.env dist/cli/analyst-score.js",
     "backfill-carry": "node --env-file=.env dist/cli/backfill-carry.js",
     "preregister-carry": "node --env-file=.env dist/cli/preregister-carry.js",
     "run-carry": "node --env-file=.env dist/cli/run-carry.js",

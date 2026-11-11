@@ -13,3 +13,4 @@ export * from './strategies/donchian-breakout.js';
 export * from './regime.js';
 export * from './round-trips.js';
 export * from './carry.js';
+export * from './analyst-score.js';
