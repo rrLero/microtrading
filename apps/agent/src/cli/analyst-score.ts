@@ -53,6 +53,13 @@ async function main(): Promise<void> {
     const cal = calibration(scored);
     console.log(`\nHit rule @${HIT_HORIZON_DAYS}d: bull/rebound r>0, bear r<0, range |r|<${RANGE_BAND * 100}%.`);
     if (!cal) return console.log('No call has a closed 7d horizon yet.');
+    const paired = scored.filter((c) => c.hit !== undefined && c.baselineHit !== undefined);
+    const a = paired.filter((c) => c.hit).length;
+    const b = paired.filter((c) => c.baselineHit).length;
+    const onlyA = paired.filter((c) => c.hit && !c.baselineHit).length;
+    const onlyB = paired.filter((c) => !c.hit && c.baselineHit).length;
+    console.log(`Baseline (label = trailing ${HIT_HORIZON_DAYS}d return, same ±${RANGE_BAND * 100}% band), same ${paired.length} calls: analyst ${a}/${paired.length}, baseline ${b}/${paired.length}.`);
+    console.log(`Disagreements that decided it: analyst-only right ${onlyA}, baseline-only right ${onlyB}. The analyst adds information only if the first clearly beats the second.`);
     console.log(`Calibration (n=${cal.n}): hit rate ${(cal.hitRate * 100).toFixed(1)}%, Brier ${cal.brier.toFixed(3)} vs constant ${cal.brierConstant.toFixed(3)} → skill ${cal.skill.toFixed(3)} (>0 = confidence beats a constant guess).`);
   } finally {
     await app.close();

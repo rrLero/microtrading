@@ -25,6 +25,9 @@ export interface ScoredCall extends AnalystCall {
   /** Forward return per horizon in days; undefined until that horizon has closed. */
   fwd: Partial<Record<(typeof HORIZONS_DAYS)[number], number>>;
   hit?: boolean | undefined;
+  /** What a trailing-7d-return rule would have said, and whether it was right. */
+  baselineLabel?: 'bull' | 'bear' | 'range' | undefined;
+  baselineHit?: boolean | undefined;
 }
 
 const DAY = 86_400_000;
@@ -49,8 +52,24 @@ export function scoreCalls(calls: AnalystCall[], closes: { ts: number; close: nu
       if (p0 !== undefined && p1 !== undefined && t <= last) fwd[h] = p1 / p0 - 1;
     }
     const r = fwd[HIT_HORIZON_DAYS];
-    return { ...c, fwd, hit: r === undefined ? undefined : isHit(c.label, r) };
+    const pBack = priceAt(c.asOf - HIT_HORIZON_DAYS * DAY);
+    const baselineLabel = p0 !== undefined && pBack !== undefined ? naiveLabel(p0 / pBack - 1) : undefined;
+    return {
+      ...c,
+      fwd,
+      hit: r === undefined ? undefined : isHit(c.label, r),
+      baselineLabel,
+      baselineHit: r === undefined || baselineLabel === undefined ? undefined : isHit(baselineLabel, r),
+    };
   });
+}
+
+/**
+ * The bar the analyst must clear (added 2026-11-11, before any baseline run):
+ * label the last 7 days by their own return, using the same band as `range`.
+ */
+export function naiveLabel(trailing: number): 'bull' | 'bear' | 'range' {
+  return trailing > RANGE_BAND ? 'bull' : trailing < -RANGE_BAND ? 'bear' : 'range';
 }
 
 export function isHit(label: string, r: number): boolean {

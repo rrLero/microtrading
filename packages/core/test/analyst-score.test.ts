@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calibration, scoreCalls } from '../src/analyst-score.js';
+import { calibration, naiveLabel, scoreCalls } from '../src/analyst-score.js';
 
 const D = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);
@@ -26,5 +26,17 @@ describe('analyst score', () => {
     expect(cal.n).toBe(2);
     expect(cal.hitRate).toBe(0.5);
     expect(cal.brier).toBeCloseTo((0.2 ** 2 + 0.6 ** 2) / 2, 9);
+  });
+
+  it('baseline labels the trailing 7 days, and is undefined without history', () => {
+    const [first, mid] = scoreCalls(
+      [{ asOf: T0, label: 'bear', confidence: 0.5 }, { asOf: T0 + 10 * D, label: 'range', confidence: 0.5 }],
+      closes,
+    );
+    expect(first!.baselineLabel).toBeUndefined();
+    expect(mid!.baselineLabel).toBe('bear'); // -6.8% over the prior week
+    expect(mid!.baselineHit).toBe(true);
+    expect(naiveLabel(0.01)).toBe('range');
+    expect(naiveLabel(0.05)).toBe('bull');
   });
 });
