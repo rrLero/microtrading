@@ -1187,3 +1187,10 @@ The human chose to publish under their real name with an MIT licence. Repo: http
 - The dashboard feed now renders `carry-forward` rows as
   "V3 carry snapshot (interim) · K1 … · K2 …". Agent and dashboard
   redeployed 18:11Z.
+- Baseline added 18:14Z: label = trailing 7d return with the same ±3% band.
+  On the same 36 calls: analyst 29, baseline 25; disagreements 4–0 for the
+  analyst. Sign test p≈0.06 one-sided, but the 4 are daily calls with
+  overlapping windows, so effectively 1–2 events. **Suggestive, not
+  evidence.** D7 (analyst as trade filter) was NOT opened. Re-score after
+  ~3 months that include a non-bear stretch; open D7 only if the
+  analyst-only margin holds on materially more disagreements.
