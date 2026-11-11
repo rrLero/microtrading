@@ -70,7 +70,7 @@ Update it after every significant operational or engineering change.
   - The local Docker agent must stay STOPPED. The local DB is a frozen backup.
   - Dashboard: https://dashboard-production-257d.up.railway.app (public, read-only).
     The agent has no public port; the dashboard reaches it over the private network.
-  - Pushes to `main` auto-deploy. See CLAUDE.md for commands. Secrets
+  - Pushes do NOT auto-deploy: run `railway redeploy` (see CLAUDE.md). Secrets
     (BYBIT_DEMO_*, TYPESAFE_API_KEY, NTFY_TOPIC) are set by the human in Railway.
 - **Phase 3 soak ENDED 2026-09-06 00:02Z — C6 coverage NOT met: 632/673 live
   ticks = 93.9% < 95%** (SPEC §7.5 C9; do not re-litigate the drill carve-out).

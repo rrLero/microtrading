@@ -1157,3 +1157,16 @@ The human chose to publish under their real name with an MIT licence. Repo: http
   - Design and plan are in `docs/superpowers/`. Core gained `trailingAprWindow` and `poolRuns`; tests 68/68.
   - `CarryForwardService` (:09), `/api/carry-forward`, a dashboard card and `v3-carry-verdict` were all deployed before registration.
   - Registered on Railway: **start 2026-11-11 00:00Z, end 2027-05-11 00:00Z, N = 40.**
+
+## 2026-11-11 — Bybit demo API key expired; replaced
+
+- The demo key "Demo Lero" (created 2026-08-10, no IP binding) expired on
+  2026-11-10 06:48Z, because Bybit expires unbound keys after 3 months. The only
+  casualty was the 13:37 calibration probe on 11-11 (`ops/mirror-error`,
+  retCode -2015). Paper, shadow and carry were unaffected because they use
+  public endpoints only.
+- New demo key "MicroTrading Railway": Unified Trading R/W, no transfer
+  permissions, no IP binding (Railway has no static egress IP). The human set
+  `BYBIT_DEMO_API_*` in Railway. The redeploy landed at 17:56Z and `demo-ping`
+  passed.
+- **The key expires again around 2027-02-11.** Renew it before then.
