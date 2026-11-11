@@ -61,7 +61,7 @@ Typecheck without emitting: `cd apps/agent && ./node_modules/.bin/tsc -p tsconfi
 See `docs/WORKLOG.md` for the running log of what has been done and why.
 Update it after every significant operational or engineering change.
 
-## Operational state (as of 2026-09-25 — update when it changes)
+## Operational state (as of 2026-11-11 — update when it changes)
 
 - **Since 2026-11-10 the agent, the dashboard and Postgres run on Railway**
   (project `microtrading`, region EU West/Amsterdam; Bybit blocks US IPs).
@@ -132,7 +132,8 @@ Update it after every significant operational or engineering change.
   SPEC TEXT, not a summary.** Donchian's 215 walk-forward OOS trades already met
   it. The "59 effective" deflation is a TOOL-side addition that is NOT in the
   spec; it was recorded here for weeks as though it were the requirement and it
-  silently blocked the project. Either log it as deviation D4 or drop it.
+  silently blocked the project. It is NOT a gate: quote raw trades for §7.4 (and the
+  label D4 is now taken by the shadow accounts).
 - §7.4's kill criteria do NOT fire on donchian or sma-crossover. Dev DSR is NOT
   a gate: §7.4 wants DSR >0 at 95% confidence **on the holdout**, and that clause
   belongs to the *gate to live pilot*, which V1 does not pursue (§1.2 non-goal).
